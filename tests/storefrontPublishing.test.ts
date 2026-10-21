@@ -40,11 +40,21 @@ describe('batch preparation of selected storefront items', () => {
     const result = await prepareStorefrontPublication(owner, source, { onResolved, onProgress })
     expect(result.itemIds).toEqual([publishedA, publishedB])
     expect(source.itemIds).toEqual([`local:${a}`, `local:${b}`])
-    expect(fake.publish).toHaveBeenNthCalledWith(1, { kind: 'product_spin', item: expect.objectContaining({ kind: 'Product Spin' }) }, { expectedOwner: owner })
-    expect(fake.publish).toHaveBeenNthCalledWith(2, { kind: 'product_spin', item: expect.objectContaining({ kind: 'Vehicle Spin', topFrames: expect.any(Array) }) }, { expectedOwner: owner })
+    expect(fake.publish).toHaveBeenNthCalledWith(1, { kind: 'product_spin', item: expect.objectContaining({ kind: 'Product Spin' }) }, expect.objectContaining({ expectedOwner: owner }))
+    expect(fake.publish).toHaveBeenNthCalledWith(2, { kind: 'product_spin', item: expect.objectContaining({ kind: 'Vehicle Spin', topFrames: expect.any(Array) }) }, expect.objectContaining({ expectedOwner: owner }))
     expect(onResolved.mock.calls).toEqual([[`local:${a}`, publishedA], [`local:${b}`, publishedB]])
     expect(onProgress.mock.calls.map(([message]) => message).join(' ')).toContain('2 de 2')
     expect(fake.storefront).not.toHaveBeenCalled()
+  })
+
+  it('forwards upload progress callbacks to onProgress options', async () => {
+    const onProgress = vi.fn()
+    fake.publish.mockImplementation(async (_input, options) => {
+      options?.onProgress?.({ current: 5, total: 10, percent: 50, stage: 'uploading' })
+      return { id: publishedA, cleanupWarning: '' }
+    })
+    await prepareStorefrontPublication(owner, document([`local:${a}`]), { onProgress })
+    expect(onProgress).toHaveBeenCalledWith(expect.stringContaining('quadro 5 de 10'))
   })
 
   it('reuses an existing active publication without uploading and preserves already selected publication IDs', async () => {

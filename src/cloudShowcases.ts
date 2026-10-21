@@ -72,7 +72,37 @@ async function removeOldPublicFiles(paths: string[], expectedOwner?: string) {
   if (metadataError) throw metadataError
 }
 
-export async function publishShowcase(input: ShowcaseInput, options: { expectedOwner?: string } = {}) {
+export type ShowcasePublishOptions = {
+  expectedOwner?: string
+  onProgress?: (progress: { current: number; total: number; percent: number; stage: 'uploading' | 'confirming' }) => void
+}
+
+function isTransientUploadError(error: unknown): boolean {
+  if (!error) return false
+  const msg = error instanceof Error ? error.message : String(error)
+  if (/conta mudou|auth_required|not_owned|excede o limite|inválid/i.test(msg)) return false
+  return /fetch|network|timeout|502|503|504|indisponível|failed/i.test(msg)
+}
+
+async function uploadWithRetry(bucket: string, path: string, file: File, mimeType: string, retries = 2): Promise<void> {
+  let lastError: unknown
+  for (let attempt = 0; attempt <= retries; attempt++) {
+    try {
+      await uploadCloudMedia(bucket, path, file, { upsert: false, contentType: mimeType })
+      return
+    } catch (error) {
+      lastError = error
+      if (attempt < retries && isTransientUploadError(error)) {
+        await new Promise(resolve => setTimeout(resolve, 800 * (attempt + 1)))
+        continue
+      }
+      throw error
+    }
+  }
+  throw lastError
+}
+
+export async function publishShowcase(input: ShowcaseInput, options: ShowcasePublishOptions = {}) {
   const { api, user } = await ownerClient(options.expectedOwner)
   const title = input.item.title.trim().slice(0, 160)
   if (!title) throw new Error('Informe um nome para este objeto antes de publicar.')
@@ -125,13 +155,32 @@ export async function publishShowcase(input: ShowcaseInput, options: { expectedO
   let rpcStarted = false
 
   try {
+    const totalFiles = files.length
     for (const [index, file] of files.entries()) {
       if (options.expectedOwner) await ownerClient(options.expectedOwner)
-      await uploadCloudMedia(publicBucket, paths[index], file, { upsert: false, contentType: mimeTypes[index] })
+      options.onProgress?.({
+        current: index,
+        total: totalFiles,
+        percent: Math.round((index / totalFiles) * 100),
+        stage: 'uploading'
+      })
+      await uploadWithRetry(publicBucket, paths[index], file, mimeTypes[index])
       uploaded.push(paths[index])
+      options.onProgress?.({
+        current: index + 1,
+        total: totalFiles,
+        percent: Math.round(((index + 1) / totalFiles) * 100),
+        stage: 'uploading'
+      })
     }
 
     if (options.expectedOwner) await ownerClient(options.expectedOwner)
+    options.onProgress?.({
+      current: totalFiles,
+      total: totalFiles,
+      percent: 100,
+      stage: 'confirming'
+    })
     rpcStarted = true
     const { data, error } = await api.rpc(input.kind === 'product_spin' ? 'publish_showcase_views' : 'publish_showcase', {
       p_kind: input.kind,

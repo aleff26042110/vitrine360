@@ -77,12 +77,23 @@ export async function prepareStorefrontPublication(owner: string, document: Stor
     // All local media has passed validation before the first upload begins.
     for (const [index, localId] of selected.entries()) {
       const spin = spins.get(localId)!
-      options.onProgress?.(`Preparando item ${index + 1} de ${selected.length}: ${spin.title}…`)
+      const itemNumber = index + 1
+      const totalItems = selected.length
+      options.onProgress?.(`Preparando item ${itemNumber} de ${totalItems}: ${spin.title}…`)
       await assertOwner(owner)
       const existing = await getOwnerShowcase('product_spin', spin.id, owner)
       await assertOwner(owner)
       const published = existing?.publication_status === 'published' ? existing
-        : await publishShowcase({ kind: 'product_spin', item: spin }, { expectedOwner: owner })
+        : await publishShowcase({ kind: 'product_spin', item: spin }, {
+            expectedOwner: owner,
+            onProgress: ({ current, total, percent, stage }) => {
+              if (stage === 'confirming') {
+                options.onProgress?.(`Confirmando publicação do item ${itemNumber} de ${totalItems}: ${spin.title}…`)
+              } else {
+                options.onProgress?.(`Enviando item ${itemNumber} de ${totalItems}: ${spin.title} (quadro ${current} de ${total} · ${percent}%)…`)
+              }
+            }
+          })
       if (!uuid.test(published.id)) throw new Error('O servidor não confirmou o identificador do item publicado. Confira sua conta antes de tentar novamente.')
       prepared.itemIds = [...new Set(prepared.itemIds.map(id => id === localId ? published.id : id))]
       options.onResolved?.(localId, published.id)
