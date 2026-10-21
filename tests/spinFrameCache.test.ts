@@ -25,7 +25,7 @@ describe('session spin frame ownership and scheduling', () => {
   })
   it('deduplicates a requested decode and prioritizes it ahead of queued neighbours', async () => {
     const started: string[] = [], completions = new Map<string, (value: DecodedSpinFrame) => void>()
-    const cache = createSpinFrameCache(url => { started.push(url); return new Promise(resolve => completions.set(url, resolve)) })
+    const cache = createSpinFrameCache(url => { started.push(url); return new Promise(resolve => completions.set(url, resolve)) }, undefined, { concurrency: 1 })
     const first = cache.request('first', true)
     expect(cache.request('first', true)).toBe(first)
     cache.warm(['near', 'far'])
@@ -55,7 +55,7 @@ describe('session spin frame ownership and scheduling', () => {
 
   it('cancels stale warm work while preserving the current target and displayed frame', async () => {
     const signals = new Map<string, AbortSignal>(), completions = new Map<string, (value: DecodedSpinFrame) => void>()
-    const cache = createSpinFrameCache((url, signal) => { signals.set(url, signal); return new Promise(resolve => completions.set(url, resolve)) })
+    const cache = createSpinFrameCache((url, signal) => { signals.set(url, signal); return new Promise(resolve => completions.set(url, resolve)) }, undefined, { concurrency: 1 })
     const initial = cache.request('initial', true)
     completions.get('initial')!(frame('initial')); await initial; cache.pin('initial'); await flush()
     cache.warm(['stale-running', 'stale-queued'])

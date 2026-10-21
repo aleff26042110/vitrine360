@@ -9,7 +9,8 @@ describe('speculative spin loading policy', () => {
     expect(spinNeighbourOffsets({ effectiveType: '3g' })).toEqual([1])
   })
   it('degrades safely when optional browser hints are absent or unknown', () => {
-    expect(spinNeighbourOffsets()).toEqual([-1, 1, 2])
-    expect(spinNeighbourOffsets({ effectiveType: 'future-network' })).toEqual([-1, 1, 2])
+    expect(spinNeighbourOffsets()).toEqual([1, 2, -1, 3, -2, 4])
+    expect(spinNeighbourOffsets({ effectiveType: 'future-network' })).toEqual([1, 2, -1, 3, -2, 4])
+    expect(spinNeighbourOffsets(undefined, -1)).toEqual([-1, -2, 1, -3, 2, -4])
   })
 })

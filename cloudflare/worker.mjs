@@ -128,13 +128,24 @@ async function handle(request, env) {
   if (reading) {
     const record = validateRecord(await ledger(env, base, 'read', owner, target), target);
     const range = request.method === 'GET' ? requestedRange(request.headers.get('Range'), record.byte_size) : undefined;
+    const revalidate = !owner && target.bucket === 'vitrine360-public' && record.mime_type.startsWith('image/') && !range && request.method === 'GET';
+    const condition = request.headers.get('If-None-Match');
+    if (revalidate && condition) {
+      // Publication authorization above still runs on every request, including 304s.
+      const metadata = await env.MEDIA_BUCKET.head(target.key);
+      if (!metadata) throw new GatewayError('not_found', 404);
+      if (metadata.size !== record.byte_size) throw new GatewayError('size_mismatch', 503);
+      if (condition.split(',').some(value => value.trim() === '*' || value.trim().replace(/^W\//, '') === metadata.httpEtag)) {
+        return new Response(null, { status: 304, headers: { ETag: metadata.httpEtag, 'Cache-Control': 'private, no-cache', 'X-Content-Type-Options': 'nosniff' } });
+      }
+    }
     const object = request.method === 'HEAD' ? await env.MEDIA_BUCKET.head(target.key) : await env.MEDIA_BUCKET.get(target.key, range ? { range } : undefined);
     if (!object) throw new GatewayError('not_found', 404);
     if (object.size !== record.byte_size) throw new GatewayError('size_mismatch', 503);
     const headers = new Headers({ 'Cache-Control': 'no-store', 'X-Content-Type-Options': 'nosniff', 'Accept-Ranges': 'bytes', ETag: object.httpEtag });
     object.writeHttpMetadata(headers);
-    // Authorization must run on every fetch: do not cache past unpublication.
-    headers.set('Cache-Control', 'no-store');
+    // Retain public image bytes, but require authorization before every reuse.
+    headers.set('Cache-Control', revalidate ? 'private, no-cache' : 'no-store');
     headers.set('Content-Length', String(range ? range.length : object.size));
     if (range) headers.set('Content-Range', `bytes ${range.offset}-${range.offset + range.length - 1}/${object.size}`);
     return new Response(request.method === 'HEAD' ? null : object.body, { status: range ? 206 : 200, headers });
@@ -194,13 +205,13 @@ export default {
     // reads as above; an external origin must never gain authenticated access.
     const publicPreflight = objectRoute && request.method === 'OPTIONS' && !request.headers.has('Authorization')
       && ['GET', 'HEAD'].includes(request.headers.get('Access-Control-Request-Method'))
-      && (request.headers.get('Access-Control-Request-Headers') || '').split(',').every(value => ['range', 'content-type', ''].includes(value.trim().toLowerCase()));
+      && (request.headers.get('Access-Control-Request-Headers') || '').split(',').every(value => ['range', 'content-type', 'if-none-match', ''].includes(value.trim().toLowerCase()));
     const trustedOrigin = allowed.includes(origin);
-    const cors = new Headers({ Vary: 'Origin', 'Cache-Control': 'no-store' });
+    const cors = new Headers({ Vary: 'Origin' });
     if (origin && (trustedOrigin || publicRead || publicPreflight)) {
       cors.set('Access-Control-Allow-Origin', origin);
       cors.set('Access-Control-Allow-Methods', trustedOrigin ? 'GET, HEAD, POST, PUT, DELETE, OPTIONS' : 'GET, HEAD');
-      cors.set('Access-Control-Allow-Headers', trustedOrigin ? 'Authorization, Content-Type, Range' : 'Content-Type, Range');
+      cors.set('Access-Control-Allow-Headers', trustedOrigin ? 'Authorization, Content-Type, Range, If-None-Match' : 'Content-Type, Range, If-None-Match');
       cors.set('Access-Control-Expose-Headers', 'Content-Length, Content-Range, ETag');
     }
     let response;
@@ -214,6 +225,7 @@ export default {
       response = Response.json({ error: code }, { status: known ? error.status : 503 });
     }
     for (const [key, value] of cors) response.headers.set(key, value);
+    if (!response.headers.has('Cache-Control')) response.headers.set('Cache-Control', 'no-store');
     return response;
   },
 };

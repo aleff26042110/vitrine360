@@ -116,13 +116,33 @@ describe('R2 gateway HTTP boundary (mocked bindings, not deployed verification)'
     expect(result.headers.get('Access-Control-Allow-Origin')).toBe('https://public-embed.example');
     expect(env.MEDIA_BUCKET.get).toHaveBeenCalledWith(`${bucket}/${path}`, { range: { offset: 2, length: 2 } });
   });
+  it('revalidates public image bytes without bypassing publication authorization or caching private reads', async () => {
+    record.state = 'ready';
+    const first = await send(objectUrl);
+    expect(first.headers.get('Cache-Control')).toBe('private, no-cache');
+    env.MEDIA_BUCKET.get.mockClear();
+    const cached = await send(objectUrl, 'GET', undefined, { 'If-None-Match': '"etag"', Origin: 'https://public-embed.example' });
+    expect(cached.status).toBe(304);
+    expect(cached.headers.get('ETag')).toBe('"etag"');
+    expect(cached.headers.get('Access-Control-Allow-Origin')).toBe('https://public-embed.example');
+    expect(env.MEDIA_BUCKET.get).not.toHaveBeenCalled();
+    expect(calls.filter(call => call.p_action === 'read')).toHaveLength(2);
+    denied = 'read';
+    env.MEDIA_BUCKET.head.mockClear();
+    expect((await send(objectUrl, 'GET', undefined, { 'If-None-Match': '"etag"' })).status).toBe(403);
+    expect(env.MEDIA_BUCKET.head).not.toHaveBeenCalled();
+    denied = null;
+    const privateRead = await send(objectUrl, 'GET', undefined, { Authorization: 'Bearer owner', 'If-None-Match': '"etag"' });
+    expect(privateRead.status).toBe(200);
+    expect(privateRead.headers.get('Cache-Control')).toBe('no-store');
+  });
   it('allows public range preflights without permitting authenticated reads or writes from an external origin', async () => {
     const headers = { Origin: 'https://public-embed.example', 'Access-Control-Request-Method': 'GET', 'Access-Control-Request-Headers': 'range' };
     const result = await send(objectUrl, 'OPTIONS', undefined, headers);
     expect(result.status).toBe(204);
     expect(result.headers.get('Access-Control-Allow-Origin')).toBe(headers.Origin);
     expect(result.headers.get('Access-Control-Allow-Methods')).toBe('GET, HEAD');
-    expect(result.headers.get('Access-Control-Allow-Headers')).toBe('Content-Type, Range');
+    expect(result.headers.get('Access-Control-Allow-Headers')).toBe('Content-Type, Range, If-None-Match');
     expect(fetch).not.toHaveBeenCalled();
     expect(env.MEDIA_BUCKET.get).not.toHaveBeenCalled();
     for (const method of ['POST', 'PUT', 'DELETE']) {

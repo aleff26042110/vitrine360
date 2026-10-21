@@ -13,6 +13,7 @@ import { useSpinGesture } from './useSpinGesture'
 import { startOrbitViewer } from './orbitMotion'
 import { useSpinFrame } from './useSpinFrame'
 import { clampZoom } from './spinZoomGeometry'
+import { storefrontLoadTimeout } from './storefrontLoading'
 
 type PublicItem = {
   kind: 'model_3d' | 'product_spin'
@@ -114,6 +115,8 @@ export function PublicShowcasePage() {
   const [zoom, setZoom] = useState(1)
   const [error, setError] = useState('')
   const [playing, setPlaying] = useState(false)
+  const [publicationRevision, setPublicationRevision] = useState(0)
+  const recoveredManifest = useRef<string | null>(null)
   const [controlsVisible, setControlsVisible] = useState(true)
   const [pageVisible, setPageVisible] = useState(true)
   const [view, setView] = useState<'side' | 'top'>('side')
@@ -121,8 +124,11 @@ export function PublicShowcasePage() {
   const stageRef = useRef<HTMLElement>(null)
   const { fullscreen, expanded, toggleFullscreen } = useViewerFullscreen(stageRef)
 
+  useEffect(() => { recoveredManifest.current = null }, [slug, previewId])
+
   useEffect(() => {
     let active = true
+    const controller = new AbortController()
     const ownedUrls: string[] = []
     async function load() {
       setItem(null); setError(''); setFrame(0); setPlaying(false); setView('side'); setDetailsMode(false)
@@ -137,7 +143,7 @@ export function PublicShowcasePage() {
             const top_assets = (saved.topFrames ?? []).map(file => { const url = URL.createObjectURL(file); ownedUrls.push(url); return url })
             result = { kind: 'product_spin', slug: saved.id, title: saved.title, description: saved.description ?? '', price_label: saved.price ?? null, background: '#10201c', zoom: saved.zoom, assets, top_assets }
           } else result = null
-        } else result = await loadPublicShowcase(slug!)
+        } else result = await storefrontLoadTimeout(loadPublicShowcase(slug!, AbortSignal.any([controller.signal, AbortSignal.timeout(10000)])), 'A publicação demorou para responder. Tente novamente.')
         if (!active) return
         if (!result || !['model_3d', 'product_spin'].includes(result.kind) || !Array.isArray(result.assets) || !result.assets.length) {
           setError('Este link não está publicado ou foi desativado.')
@@ -153,13 +159,14 @@ export function PublicShowcasePage() {
         }
         setItem(result)
         setZoom(Math.max(0.6, Math.min(2, result.zoom ?? 1)))
-      } catch {
-        if (active) setError('Não foi possível carregar esta publicação. Tente novamente mais tarde.')
+      } catch (cause) {
+        if (active) setError(cause instanceof Error && cause.name === 'TimeoutError' ? 'A publicação demorou para responder. Tente novamente.'
+          : cause instanceof Error ? cause.message : 'Não foi possível carregar esta publicação. Tente novamente mais tarde.')
       }
     }
     void load()
-    return () => { active = false; ownedUrls.forEach(URL.revokeObjectURL) }
-  }, [slug, previewId])
+    return () => { active = false; controller.abort(); ownedUrls.forEach(URL.revokeObjectURL) }
+  }, [slug, previewId, publicationRevision])
 
   const assetUrl = (path: string) => previewId ? path : publicShowcaseAssetUrl(path)
   const assets = view === 'top' ? (item?.top_assets ?? noFrames) : (item?.assets ?? noFrames)
@@ -167,6 +174,12 @@ export function PublicShowcasePage() {
   const dragging = spinGesture.dragging
   const frameUrls = useMemo(() => assets.map(path => previewId ? path : publicShowcaseAssetUrl(path)), [assets, previewId])
   const decoded = useSpinFrame(item?.kind === 'product_spin' ? frameUrls : noFrames, frame)
+  useEffect(() => {
+    // An old revision may be revoked between reading its manifest and its image.
+    // Refresh once, never loop on a genuinely missing file.
+    if (previewId || !slug || decoded.src || ![403, 404].includes(decoded.errorStatus ?? 0) || recoveredManifest.current === slug) return
+    recoveredManifest.current = slug; setPublicationRevision(value => value + 1)
+  }, [slug, previewId, decoded.src, decoded.errorStatus])
   useEffect(() => {
     const host = stageRef.current?.querySelector<HTMLElement>('.showcase-spin-stage')
     if (!host || !detailsMode) return
@@ -205,6 +218,11 @@ export function PublicShowcasePage() {
     setFrame(index => (index + direction + assets.length) % assets.length)
   }
 
+  function retryFrame() {
+    if (!previewId && [403, 404].includes(decoded.errorStatus ?? 0)) setPublicationRevision(value => value + 1)
+    else decoded.retry()
+  }
+
   return <main className={`public-showcase-page ${embedded ? 'is-embedded' : ''} ${controlsVisible ? '' : 'controls-hidden'}`}>
     {previewId && <div className="showcase-preview-banner"><Link to={`/spin/${previewId}/edit`}><ArrowLeft size={16} /> Voltar à edição</Link><span>Prévia neste dispositivo · ainda não publicada</span></div>}
     <header className="showcase-public-header"><Link to="/" aria-label="Voltar ao Vitrine360"><ArrowLeft size={17} /></Link><Link to="/" className="showcase-public-brand">vitrine<b>360</b></Link><span className="showcase-public-badge">{previewId ? 'PRÉVIA' : 'PÚBLICO'}</span>{!previewId && <button type="button" className="showcase-share" aria-label="Compartilhar link" onClick={() => void share()}><Share2 size={16} /><span>Compartilhar</span></button>}</header>
@@ -214,7 +232,7 @@ export function PublicShowcasePage() {
           ? <ModelViewer url={assetUrl(item.assets[0])} background={item.background} />
           : <div className={`showcase-spin-stage ${detailsMode ? 'detail-mode' : ''} ${dragging ? 'dragging' : ''}`} style={{ background: item.background }} {...spinGesture.handlers} onWheelCapture={() => { if (detailsMode) spinGesture.cancel() }} onKeyDown={event => { if (event.target !== event.currentTarget) return; if (event.key === 'ArrowRight') { event.preventDefault(); moveFrame(1) } if (event.key === 'ArrowLeft') { event.preventDefault(); moveFrame(-1) } }} tabIndex={0} aria-label={`Giro de produto, quadro ${frame + 1} de ${assets.length}`}>
             {decoded.src && <img src={decoded.src} alt={`${item.title}, ${view === 'top' ? 'por cima' : 'ao redor'}, quadro ${decoded.displayedIndex + 1} de ${assets.length}`} draggable={false} style={{ transform: `translate(${spinGesture.pan.x}px, ${spinGesture.pan.y}px) scale(${zoom})` }} />}
-            <span className="showcase-stage-hint">{detailsMode ? 'Pinça para aproximar · arraste para explorar detalhes' : 'Arraste para girar · abra Detalhes para aproximar'}</span><div className="showcase-detail-mode"><button type="button" aria-label={detailsMode ? 'Voltar a girar o produto' : 'Explorar detalhes do produto'} aria-pressed={detailsMode} onClick={() => { spinGesture.resetDetail(); setPlaying(false); setDetailsMode(value => !value) }}>{detailsMode ? 'Girar produto' : 'Detalhes'}</button></div>{decoded.loading && !decoded.error && <span className="spin-frame-status" role="status">Carregando quadro…</span>}{decoded.error && <div className="spin-frame-status" role="alert">{decoded.error}<button type="button" onClick={decoded.retry}>Tentar novamente</button></div>}
+            <span className="showcase-stage-hint">{detailsMode ? 'Pinça para aproximar · arraste para explorar detalhes' : 'Arraste para girar · abra Detalhes para aproximar'}</span><div className="showcase-detail-mode"><button type="button" aria-label={detailsMode ? 'Voltar a girar o produto' : 'Explorar detalhes do produto'} aria-pressed={detailsMode} onClick={() => { spinGesture.resetDetail(); setPlaying(false); setDetailsMode(value => !value) }}>{detailsMode ? 'Girar produto' : 'Detalhes'}</button></div>{decoded.loading && !decoded.error && <span className="spin-frame-status" role="status">Carregando quadro…</span>}{decoded.error && <div className="spin-frame-status" role="alert">{decoded.error}{decoded.src && <span>Você pode continuar explorando os outros ângulos.</span>}<button type="button" onClick={retryFrame}>Tentar novamente</button></div>}
             <div className="showcase-spin-controls"><button type="button" aria-label={playing ? 'Pausar giro' : 'Reproduzir giro'} aria-pressed={playing} onClick={() => setPlaying(value => !value)}>{playing ? <Pause size={18} /> : <Play size={18} />}</button><button type="button" aria-label="Quadro anterior" onClick={event => { event.stopPropagation(); moveFrame(-1) }}><ChevronLeft size={20} /></button><span>{String(frame + 1).padStart(2, '0')} / {String(assets.length).padStart(2, '0')}</span><button type="button" aria-label="Próximo quadro" onClick={event => { event.stopPropagation(); moveFrame(1) }}><ChevronRight size={20} /></button><button type="button" aria-label="Ajustar produto à tela" onClick={() => { setZoom(1); spinGesture.resetDetail() }}><RotateCcw size={18} /></button></div>
             <label className="showcase-angle-control"><span>Ângulo</span><input type="range" min={0} max={assets.length - 1} value={frame} aria-label="Ângulo do produto" onChange={event => { setPlaying(false); setFrame(Number(event.target.value)) }} /><span>{Math.round(frame * 360 / assets.length)}°</span></label>
           </div>}
@@ -223,7 +241,7 @@ export function PublicShowcasePage() {
         {item.kind === 'product_spin' && !!item.top_assets?.length && <div className="showcase-view-selector" role="group" aria-label="Perspectiva do produto"><button type="button" aria-pressed={view === 'side'} onClick={() => changeView('side')}>Ao redor</button><button type="button" aria-pressed={view === 'top'} onClick={() => changeView('top')}>Por cima</button></div>}
       </section>
       <aside className="showcase-public-info"><span className="showcase-kind-label">{item.kind === 'model_3d' ? 'MODELO 3D' : 'GIRO 360°'}</span><h1>{item.title}</h1>{item.price_label && <strong className="showcase-price">{item.price_label}</strong>}{item.description && <p>{item.description}</p>}{item.kind === 'product_spin' && <><div className="showcase-frame-nav"><button type="button" aria-label="Quadro anterior" onClick={() => moveFrame(-1)}><ChevronLeft size={16} /></button><span>Quadro {frame + 1} de {assets.length}</span><button type="button" aria-label="Próximo quadro" onClick={() => moveFrame(1)}><ChevronRight size={16} /></button></div><label className="showcase-zoom-control">Zoom <span>{Math.round(zoom * 100)}%</span><input type="range" min="0.6" max="2" step="0.1" value={zoom} aria-label="Zoom das imagens" onChange={event => { setDetailsMode(true); setPlaying(false); setZoom(Number(event.target.value)) }} /></label></>}<div className="showcase-public-note">Visualização pública · Vitrine360</div></aside>
-    </div> : <div className="showcase-public-empty" role="status"><strong>{error || 'Carregando publicação…'}</strong>{error && <Link to="/" className="button button-outline">Voltar ao Vitrine360</Link>}</div>}
+    </div> : <div className="showcase-public-empty" role="status"><strong>{error || 'Carregando publicação…'}</strong>{error && <><button type="button" className="button button-primary" onClick={() => setPublicationRevision(value => value + 1)}>Tentar novamente</button><Link to="/" className="button button-outline">Voltar ao Vitrine360</Link></>}</div>}
     {error && item && <div className="showcase-toast" role="status">{error}<button type="button" aria-label="Fechar mensagem" onClick={() => setError('')}>×</button></div>}
     <footer className="showcase-public-footer"><span>Experiência publicada com Vitrine360</span><Link to="/">Crie sua experiência</Link></footer>
   </main>

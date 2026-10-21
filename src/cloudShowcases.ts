@@ -1,6 +1,7 @@
 import { supabase } from './supabase'
 import type { StoredModel, StoredSpin } from './projectStore'
 import { inspectGlb } from './glbValidation'
+import { parsePublicShowcaseManifest } from './publicShowcaseManifest'
 import { newCloudMediaPath, parseCloudMediaPath, publicCloudMediaUrl, removeCloudMedia, uploadCloudMedia, validateCloudFileSize } from './cloudStorage'
 
 export type ShowcaseKind = 'model_3d' | 'product_spin'
@@ -192,20 +193,12 @@ export async function unpublishShowcase(kind: ShowcaseKind, itemId: string) {
   return true
 }
 
-export async function loadPublicShowcase(slug: string) {
-  const { data, error } = await client().rpc('load_public_showcase', { p_slug: slug })
+export async function loadPublicShowcase(slug: string, signal?: AbortSignal) {
+  const query = client().rpc('load_public_showcase', { p_slug: slug })
+  const { data, error } = await (signal ? query.abortSignal(signal) : query)
+  signal?.throwIfAborted()
   if (error) throw error
-  return data as {
-    kind: ShowcaseKind
-    slug: string
-    title: string
-    description: string
-    price_label: string | null
-    background: string
-    zoom: number
-    assets: string[]
-    top_assets?: string[]
-  } | null
+  return parsePublicShowcaseManifest(data, slug)
 }
 
 export function publicShowcaseAssetUrl(path: string) {
