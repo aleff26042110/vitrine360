@@ -65,6 +65,31 @@ async function scenario(name, run) {
 }
 
 try {
+  for (const width of [1440, 390]) await scenario(`loading never covers the product at ${width}px`, async ({ page, state, image, angle }) => {
+    await page.setViewportSize({ width, height: 950 })
+    state.fault = 'all-hang'
+    await page.goto(base + '/showcase/first')
+    const loading = page.locator('.showcase-spin-stage [role=status]')
+    await loading.waitFor({ state: 'attached' })
+    async function assertUnobtrusive() {
+      const style = await loading.evaluate(element => {
+        const css = getComputedStyle(element), box = element.getBoundingClientRect()
+        return { width: box.width, height: box.height, clip: css.clipPath, events: css.pointerEvents }
+      })
+      assert.deepEqual(style, { width: 1, height: 1, clip: 'inset(50%)', events: 'none' })
+      assert.equal(await page.locator('.spin-frame-status[role=status]').count(), 0)
+    }
+    await assertUnobtrusive()
+    state.fault = 'healthy'
+    await angle(10); await image()
+    const previous = await page.locator('.showcase-spin-stage>img').getAttribute('src')
+    state.fault = 'all-hang'
+    await page.getByRole('slider').first().fill('5')
+    await loading.waitFor({ state: 'attached' })
+    await assertUnobtrusive()
+    assert.equal(await page.locator('.showcase-spin-stage>img').getAttribute('src'), previous, 'Keep the previous image visible while an angle loads')
+    await page.screenshot({ path: `.tmp-ui/public-spin/unobstructed-product-${width}.png` })
+  })
   await scenario('embedded engine decode promise stalls after successful native image load', async ({ page, image, angle }) => {
     await page.addInitScript(() => { HTMLImageElement.prototype.decode = () => new Promise(() => undefined) })
     await page.goto(base + '/showcase/first'); await image(); await angle(1)
