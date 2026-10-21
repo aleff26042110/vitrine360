@@ -24,6 +24,8 @@ Verifique em navegador a página inicial e uma rota interna aberta diretamente, 
 
 Crie um repositório novo, envie o commit da branch `main` e configure essa branch como padrão. Mantenha arquivos locais, caches da CLI Supabase e segredos fora do Git. O GitHub armazena o código; não usar GitHub Pages para este SaaS comercial, conforme os [limites oficiais](https://docs.github.com/en/pages/getting-started-with-github-pages/github-pages-limits).
 
+O endereço `https://aleff26042110.github.io/vitrine360/` usa somente uma página estática de encaminhamento para o site na Cloudflare. Pages deve publicar `main` e `/docs`, que contém `index.html`, `404.html`, `redirect.js` e `.nojekyll`. O encaminhamento mantém rota, parâmetros e fragmento, com destino fixo na Cloudflare. Não publicar a raiz do código-fonte no Pages: o `index.html` do desenvolvimento depende do Vite e não funciona sem compilação.
+
 ## Verificação da publicação — 2026-10-20
 
 Frontend publicado como `vitrine360-web`, versão `79a7987c-014f-4d6c-bd40-301504b74f51`. Início, autenticação, cobrança e checkout Pix responderam HTTP 200 em acesso direto. O navegador carregou a interface e os módulos de produção, inclusive o checkout Pix disponível, sem erros no console observado.
