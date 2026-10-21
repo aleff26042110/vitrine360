@@ -1,7 +1,7 @@
 import { readFile } from 'node:fs/promises'
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from 'vitest'
 import { PGlite } from '@electric-sql/pglite'
-import { defaultStorefront } from '../src/storefront'
+import { defaultStorefront, storefrontTemplates, parseStorefront } from '../src/storefront'
 
 const ownerA = '00000000-0000-4000-8000-000000000001'
 const ownerB = '00000000-0000-4000-8000-000000000002'
@@ -35,10 +35,26 @@ describe('storefront publication privacy and ownership', () => {
     const sql = await readFile(new URL('../supabase/migrations/20261016045827_personalized_storefronts.sql', import.meta.url), 'utf8')
     await db.exec(sql)
     await db.exec(sql)
+    await db.exec(await readFile(new URL('../supabase/migrations/20261021192609_storefront_editing_and_themes.sql', import.meta.url), 'utf8'))
   }, 30000)
   afterAll(async () => { await db?.close() })
   beforeEach(async () => { await db.exec('begin;'); await actAs(ownerA) })
   afterEach(async () => { await db.exec('rollback; reset role;') })
+
+  it.each(storefrontTemplates)('saves, edits and publishes the $id theme with presentation settings', async ({ id }) => {
+    const value = parseStorefront({ ...document, template: id, showPrices: false, showDescriptions: false, imageFit: 'contain', density: 'compact' })
+    await db.query('select public.publish_storefront($1::jsonb)', [JSON.stringify(value)])
+    await db.query('select public.save_storefront_draft($1::jsonb)', [JSON.stringify({ ...value, name: 'Novos dados', description: '', itemIds: [] })])
+    const row = (await db.query<{draft: typeof value; published: typeof value}>('select draft,published from public.storefronts')).rows[0]
+    expect(row.draft.itemIds).toEqual([])
+    expect(row.draft.name).toBe('Novos dados')
+    expect(row.published.template).toBe(id)
+    expect(row.published.itemIds).toEqual([itemA])
+    expect(row.published.showPrices).toBe(false)
+  })
+  it.each([{ showPrices: 'false' }, { density: 'bad' }, { imageFit: 'bad' }, { template: 'unknown' }, { owner_id: ownerB }])('rejects invalid presentation and extra keys %j', async extra => {
+    await expect(db.query('select public.save_storefront_draft($1::jsonb)', [JSON.stringify({ ...document, ...extra })])).rejects.toThrow(/invalid_storefront_document/)
+  })
 
   it('publishes an explicit snapshot, preserves it during draft edits, and withdraws it without deleting the draft', async () => {
     await db.query('select public.publish_storefront($1::jsonb)', [JSON.stringify(document)])

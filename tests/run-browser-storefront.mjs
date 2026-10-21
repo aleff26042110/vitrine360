@@ -37,7 +37,7 @@ try {
   assert.equal(await page.locator('.storefront-showroom').count(), 1)
   checks.push('Identity, template, colors and typography persist after saving and reloading')
   await page.getByRole('button', { name: 'Itens 360°', exact: true }).click()
-  assert.equal(await page.getByRole('link', { name: 'Criar veículo 360°' }).getAttribute('href'), '/spin/new')
+  assert.equal(await page.getByRole('link', { name: 'Criar veículo 360°' }).getAttribute('href'), '/spin/new?from=storefront')
   await page.getByRole('button', { name: 'Publicar vitrine' }).click()
   await page.getByRole('alert').filter({ hasText: /item publicado/ }).waitFor()
   assert.equal(await page.getByRole('button', { name: 'Copiar link' }).count(), 0)

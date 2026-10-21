@@ -1,16 +1,21 @@
 import { supabase } from './supabase'
+import { storefrontLoadTimeout } from './storefrontLoading'
 import { publicShowcaseAssetUrl } from './cloudShowcases'
 import { generateStorefrontSlug, parseStorefront, validateStorefront, validStorefrontSlug, type StorefrontDocument, type StorefrontItem } from './storefront'
 
 export type StorefrontRecord = { owner_id: string; slug: string | null; draft: StorefrontDocument; published: StorefrontDocument | null; updated_at: string }
 async function ownerClient(expectedOwner: string) {
   if (!supabase) throw new Error('Entre na sua conta para salvar e publicar sua vitrine.')
-  const { data, error } = await supabase.auth.getUser()
+  const { data, error } = await storefrontLoadTimeout(supabase.auth.getUser(), 'Não foi possível confirmar sua conta. Tente novamente; seu rascunho foi preservado.')
   if (error || !data.user || data.user.id !== expectedOwner) throw new Error('Sua conta mudou ou a sessão terminou. Entre novamente antes de salvar.')
   return supabase
 }
 export function storefrontError(error: unknown) {
   const code = error && typeof error === 'object' && 'code' in error ? String(error.code) : ''
+  const message = error && typeof error === 'object' && 'message' in error ? String(error.message) : ''
+  if (message.includes('invalid_storefront_document') || code === '23514') return 'Confira o nome, o endereço e o tema da vitrine. As alterações continuam guardadas neste navegador.'
+  if (message.includes('billing_item_limit')) return 'A seleção ultrapassa o limite do seu plano. Remova alguns produtos da vitrine antes de publicar.'
+  if (message.includes('storefront_items_must_be_owned_and_published')) return 'Há um produto indisponível na seleção. Remova-o ou publique novamente esse produto.'
   if (code === '23505') return 'Este endereço já está em uso. Escolha outro para sua vitrine.'
   if (['PGRST205', 'PGRST202', '42P01', '42883'].includes(code)) return 'A publicação de vitrines ainda não está disponível nesta instalação. Seu rascunho local foi preservado.'
   return error instanceof Error ? error.message : error && typeof error === 'object' && 'message' in error ? String(error.message) : 'Não foi possível concluir. Tente novamente.'
@@ -24,21 +29,21 @@ export async function loadOwnerStorefront(owner: string): Promise<StorefrontReco
 export async function saveOwnerStorefront(owner: string, document: StorefrontDocument) {
   validateStorefront(document)
   const api = await ownerClient(owner)
-  const { error } = await api.rpc('save_storefront_draft', { p_document: parseStorefront(document) })
+  const { error } = await storefrontLoadTimeout(api.rpc('save_storefront_draft', { p_document: parseStorefront(document) }).abortSignal(AbortSignal.timeout(15000)), 'O servidor não confirmou o salvamento. Seu rascunho local foi preservado; tente novamente.', 15000)
   if (error) throw error
 }
 export async function publishOwnerStorefront(owner: string, document: StorefrontDocument) {
   document.slug = generateStorefrontSlug(document.slug || document.name)
   validateStorefront(document, true)
   const api = await ownerClient(owner)
-  const { data, error } = await api.rpc('publish_storefront', { p_document: parseStorefront(document) })
+  const { data, error } = await storefrontLoadTimeout(api.rpc('publish_storefront', { p_document: parseStorefront(document) }).abortSignal(AbortSignal.timeout(15000)), 'O servidor não confirmou a publicação. Confira o link público antes de tentar novamente.', 15000)
   if (error) throw error
   if (typeof data !== 'string') throw new Error('O servidor não confirmou a publicação. Verifique sua vitrine antes de tentar novamente.')
   return data
 }
 export async function unpublishOwnerStorefront(owner: string) {
   const api = await ownerClient(owner)
-  const { error } = await api.from('storefronts').update({ published: null, updated_at: new Date().toISOString() }).eq('owner_id', owner)
+  const { error } = await storefrontLoadTimeout(api.from('storefronts').update({ published: null, updated_at: new Date().toISOString() }).eq('owner_id', owner).abortSignal(AbortSignal.timeout(15000)), 'O servidor não confirmou a retirada do ar. Tente novamente.', 15000)
   if (error) throw error
 }
 type PublicationRow = { id: string; title: string; description: string; price_label: string | null; kind: string; slug: string; asset_paths: string[]; spin_kind?: string }

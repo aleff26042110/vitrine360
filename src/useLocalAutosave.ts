@@ -19,5 +19,5 @@ export function useLocalAutosave<T>(snapshot: T | null, write: (value:T)=>Promis
     return()=>{active=false;window.removeEventListener('pagehide',flush);window.removeEventListener('beforeunload',leaving);document.removeEventListener('visibilitychange',hidden);void autosave.dispose().catch(()=>{});if(owner.current===autosave)owner.current=null}
   },[identity])
   useEffect(()=>{if(snapshot)owner.current?.schedule(snapshot)},[snapshot,identity])
-  return {retry:()=>{void owner.current?.flush().catch(()=>{})}}
+  return {flush: () => owner.current?.flush() ?? Promise.resolve(), retry:()=>{void owner.current?.flush().catch(()=>{})}}
 }

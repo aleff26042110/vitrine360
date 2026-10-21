@@ -224,7 +224,7 @@ export function PublicShowcasePage() {
   }
 
   return <main className={`public-showcase-page ${embedded ? 'is-embedded' : ''} ${controlsVisible ? '' : 'controls-hidden'}`}>
-    {previewId && <div className="showcase-preview-banner"><Link to={`/spin/${previewId}/edit`}><ArrowLeft size={16} /> Voltar à edição</Link><span>Prévia neste dispositivo · ainda não publicada</span></div>}
+    {previewId && <div className="showcase-preview-banner"><Link to={`/spin/${previewId}/edit${params.get('from') === 'storefront' ? '?from=storefront' : ''}`}><ArrowLeft size={16} /> Voltar à edição</Link><span>Prévia neste dispositivo · ainda não publicada</span></div>}
     <header className="showcase-public-header"><Link to="/" aria-label="Voltar ao Vitrine360"><ArrowLeft size={17} /></Link><Link to="/" className="showcase-public-brand">vitrine<b>360</b></Link><span className="showcase-public-badge">{previewId ? 'PRÉVIA' : 'PÚBLICO'}</span>{!previewId && <button type="button" className="showcase-share" aria-label="Compartilhar link" onClick={() => void share()}><Share2 size={16} /><span>Compartilhar</span></button>}</header>
     {item ? <div className="showcase-public-layout">
       <section className={`showcase-public-viewer ${expanded ? 'is-expanded' : ''}`} ref={stageRef} aria-label="Visualizador do produto">

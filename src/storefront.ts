@@ -11,6 +11,10 @@ export type StorefrontDocument = {
   accent: string
   font: 'editorial' | 'modern'
   itemIds: string[]
+  showPrices?: boolean
+  showDescriptions?: boolean
+  imageFit?: 'contain' | 'cover'
+  density?: 'comfortable' | 'compact'
 }
 export type StorefrontItem = { id: string; title: string; description: string; price: string; kind: 'object' | 'vehicle' | 'model'; image: string; href: string; local?: boolean }
 export const storefrontTemplates = [
@@ -32,6 +36,18 @@ export const storefrontPalettes = [
 ]
 export const defaultStorefront: StorefrontDocument = { version: 1, name: 'Minha Vitrine', slug: '', headline: 'Um novo olhar sobre cada detalhe.', description: 'Explore a minha seleção de objetos e veículos em 360°.', contactUrl: '', template: 'editorial', background: '#F4EFE6', accent: '#153A32', font: 'editorial', itemIds: [] }
 
+export const storefrontThemeStyles: Record<StorefrontTemplate, Pick<StorefrontDocument, 'background' | 'accent' | 'font'>> = {
+  editorial: { background: '#F4EFE6', accent: '#153A32', font: 'editorial' },
+  gallery: { background: '#FAFAF8', accent: '#3657A5', font: 'modern' },
+  showroom: { background: '#E9EDF0', accent: '#243B53', font: 'modern' },
+  jewelry_luxury: { background: '#17121C', accent: '#D6B37C', font: 'editorial' },
+  auto_premium: { background: '#101820', accent: '#B6D5E6', font: 'modern' },
+  botanical_garden: { background: '#EEF2E7', accent: '#34583E', font: 'editorial' },
+  nordic_studio: { background: '#F3F0EB', accent: '#3D6272', font: 'modern' },
+  art_deco: { background: '#1C2030', accent: '#D8B86D', font: 'editorial' },
+  brutalist_concrete: { background: '#E4E1DB', accent: '#9D332A', font: 'modern' },
+}
+
 export function storefrontSlug(value: string) { return value.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '').slice(0, 60) }
 export function generateStorefrontSlug(value: string, fallback = 'minha-vitrine') {
   const derived = storefrontSlug(value || fallback)
@@ -45,10 +61,11 @@ export function parseStorefront(value: unknown): StorefrontDocument {
   const data = value && typeof value === 'object' && !Array.isArray(value) ? value as Record<string, unknown> : {}
   function text(key: keyof StorefrontDocument, maximum: number) { return typeof data[key] === 'string' ? (data[key] as string).slice(0, maximum) : defaultStorefront[key] as string }
   const color = (key: 'background' | 'accent') => typeof data[key] === 'string' && /^#[0-9a-f]{6}$/i.test(data[key]) ? data[key] : defaultStorefront[key]
-  return { version: 1, name: text('name', 100), slug: text('slug', 60), headline: text('headline', 140), description: text('description', 600), contactUrl: safeStorefrontUrl(text('contactUrl', 2048)), template: storefrontTemplates.some(item => item.id === data.template) ? data.template as StorefrontTemplate : 'editorial', background: color('background'), accent: color('accent'), font: data.font === 'modern' ? 'modern' : 'editorial', itemIds: Array.isArray(data.itemIds) ? [...new Set(data.itemIds.filter((id): id is string => typeof id === 'string' && /^(?:local:)?[a-zA-Z0-9-]{1,80}$/.test(id)))].slice(0, 100) : [] }
+  return { version: 1, name: text('name', 100), slug: text('slug', 60), headline: text('headline', 140), description: text('description', 600), contactUrl: safeStorefrontUrl(text('contactUrl', 2048)), template: storefrontTemplates.some(item => item.id === data.template) ? data.template as StorefrontTemplate : 'editorial', background: color('background'), accent: color('accent'), font: data.font === 'modern' ? 'modern' : 'editorial', showPrices: data.showPrices !== false, showDescriptions: data.showDescriptions !== false, imageFit: data.imageFit === 'cover' ? 'cover' : 'contain', density: data.density === 'compact' ? 'compact' : 'comfortable', itemIds: Array.isArray(data.itemIds) ? [...new Set(data.itemIds.filter((id): id is string => typeof id === 'string' && /^(?:local:)?[a-zA-Z0-9-]{1,80}$/.test(id)))].slice(0, 100) : [] }
 }
 export function validateStorefront(document: StorefrontDocument, publishing = false) {
   if (!document.name.trim()) throw new Error('Informe o nome da sua vitrine.')
+  if (document.slug && !validStorefrontSlug(document.slug)) throw new Error('Use um endereço com 3 a 60 letras, números ou hífens, ou deixe o campo vazio.');
   if (document.contactUrl.trim() && !safeStorefrontUrl(document.contactUrl)) throw new Error('Use um link de contato válido começando com https:// ou http://.')
   if (publishing) {
     document.slug = generateStorefrontSlug(document.slug || document.name)

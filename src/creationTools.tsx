@@ -36,15 +36,17 @@ const spinVideoTypes = new Set(['video/mp4', 'video/webm', 'video/quicktime'])
 const isSpinVideo = (file: File) => spinVideoTypes.has(file.type) || /\.(mp4|mov|webm)$/i.test(file.name)
 
 
-function EditorHeader({ title, onTitle, status, back = '/', actions, onRetry, disabled }: { title: string; onTitle: (value: string) => void; status: string; back?: string; actions?: ReactNode; onRetry?: () => void; disabled?: boolean }) {
-  return <header className="creation-header"><Link to={back} className="creation-back"><ArrowLeft size={17} /> Estúdio</Link><input disabled={disabled} aria-label="Nome do projeto" value={title} onChange={event => onTitle(event.target.value)} /><SaveFeedback status={status} onRetry={onRetry} />{actions && <div className="studio-header-actions">{actions}</div>}</header>
+function EditorHeader({ title, onTitle, status, back = '/', backLabel = 'Estúdio', actions, onRetry, disabled }: { title: string; onTitle: (value: string) => void; status: string; back?: string; backLabel?: string; actions?: ReactNode; onRetry?: () => void; disabled?: boolean }) {
+  return <header className="creation-header"><Link to={back} className="creation-back"><ArrowLeft size={17} /> {backLabel}</Link><input disabled={disabled} aria-label="Nome do projeto" value={title} onChange={event => onTitle(event.target.value)} /><SaveFeedback status={status} onRetry={onRetry} />{actions && <div className="studio-header-actions">{actions}</div>}</header>
 }
 
 export function ProductSpinEditor() {
+  const [returnBusy, setReturnBusy] = useState(false)
   const [studioSection, setStudioSection] = useState<StudioSection>('media')
   const [studioFocused, setStudioFocused] = useState(false)
   const location = useLocation()
   const navigate = useNavigate()
+  const fromStorefront = new URLSearchParams(location.search).get('from') === 'storefront'
   const { id: routeId } = useParams()
   const [kind, setKind] = useState<StoredSpin['kind']>((location.state as { kind?: string } | null)?.kind === 'Vehicle Spin' ? 'Vehicle Spin' : 'Product Spin')
   const [id, setId] = useState<string | null>(null)
@@ -87,7 +89,7 @@ export function ProductSpinEditor() {
       if (!routeId) {
         const newId = crypto.randomUUID()
         setId(newId)
-        navigate(`/spin/${newId}/edit`, { replace: true, state: location.state })
+        navigate(`/spin/${newId}/edit${fromStorefront ? '?from=storefront' : ''}`, { replace: true, state: location.state })
         return
       }
       setId(routeId)
@@ -104,7 +106,7 @@ export function ProductSpinEditor() {
     }
     void load()
     return () => { cancelled = true }
-  }, [routeId, navigate, location.state])
+  }, [routeId, navigate, location.state, fromStorefront])
 
   const spinSnapshot = useMemo<Omit<StoredSpin, 'updatedAt'> | null>(() => ready && id && id === routeId ? { id, title, kind, frames: sideFrames, topFrames, zoom, rotationSpeed, description, price, captureReports } : null,[ready,id,routeId,title,kind,sideFrames,topFrames,zoom,rotationSpeed,description,price,captureReports])
   const autosave = useLocalAutosave(spinSnapshot,value => saveSpin({...value,updatedAt:Date.now()}),routeId ?? 'new-spin',setStatus)
@@ -175,13 +177,23 @@ export function ProductSpinEditor() {
       target?.scrollIntoView({ block: 'nearest' }); target?.focus({ preventScroll: true })
     })
   }
+  async function addToStorefront() {
+    if (!spinSnapshot || sideFrames.length < 2 || returnBusy) return
+    setReturnBusy(true); setError('')
+    try {
+      await autosave.flush()
+      await saveSpin({ ...spinSnapshot, updatedAt: Date.now() })
+      navigate('/minha-vitrine?tab=items&add=' + encodeURIComponent(spinSnapshot.id))
+    } catch { setError('Não foi possível salvar o produto. Tente novamente antes de voltar à vitrine.') }
+    finally { setReturnBusy(false) }
+  }
   async function previewSpin() {
     if (!ready || !id || !sideFrames.length) return
-    try { await saveSpin({ id, title, kind, frames: sideFrames, topFrames, updatedAt: Date.now(), zoom, rotationSpeed, description, price, captureReports }); navigate(`/spin/${id}/view`) }
+    try { await saveSpin({ id, title, kind, frames: sideFrames, topFrames, updatedAt: Date.now(), zoom, rotationSpeed, description, price, captureReports }); navigate(`/spin/${id}/view${fromStorefront ? '?from=storefront' : ''}`) }
     catch { setError('Não foi possível salvar a prévia.') }
   }
   return <div className={`creation-page studio-editor studio-spin ${studioFocused ? 'studio-focus' : ''}`} onPointerDownCapture={event => { if ((event.target as HTMLElement).closest('button,input,select,textarea')) spinGesture.cancel() }}>
-    <EditorHeader title={title} onTitle={setTitle} status={status} onRetry={autosave.retry} disabled={!ready} actions={<><button className="button button-outline" disabled={!ready || !sideFrames.length} onClick={() => void previewSpin()}><Play size={14} /> Pré-visualizar</button><button className="button button-primary" disabled={!ready} onClick={() => { setStudioFocused(false); requestAnimationFrame(() => { const panel = document.querySelector<HTMLElement>('.showcase-publish-card'); panel?.scrollIntoView({ block: 'center' }); panel?.setAttribute('tabindex', '-1'); panel?.focus({ preventScroll: true }) }) }}>Publicação</button></>} />
+    <EditorHeader title={title} onTitle={setTitle} status={status} onRetry={autosave.retry} disabled={!ready || returnBusy} back={fromStorefront ? '/minha-vitrine?tab=items' : '/'} backLabel={fromStorefront ? 'Minha vitrine' : 'Estúdio'} actions={<>{fromStorefront && <button className="button button-primary" disabled={!ready || sideFrames.length < 2 || returnBusy || videoProgress !== null} onClick={() => void addToStorefront()}>{returnBusy ? 'Salvando…' : 'Adicionar à vitrine'}</button>}<button className="button button-outline" disabled={!ready || !sideFrames.length} onClick={() => void previewSpin()}><Play size={14} /> Pré-visualizar</button><button className="button button-primary" disabled={!ready} onClick={() => { setStudioFocused(false); requestAnimationFrame(() => { const panel = document.querySelector<HTMLElement>('.showcase-publish-card'); panel?.scrollIntoView({ block: 'center' }); panel?.setAttribute('tabindex', '-1'); panel?.focus({ preventScroll: true }) }) }}>Publicação</button></>} />
     <div className="creation-layout">
       <StudioDock section={studioSection} onSection={selectStudioSection} focused={studioFocused} onFocus={() => setStudioFocused(value => !value)} />
       <aside className="creation-sidebar"><span className="editor-kicker">{kind === 'Vehicle Spin' ? 'GIRO DE VEÍCULO' : 'GIRO DE PRODUTO'}</span><h1>{kind === 'Vehicle Spin' ? 'Giro de veículo' : 'Giro de produto'}</h1><p>Grave uma volta completa ao redor {kind === 'Vehicle Spin' ? 'do veículo' : 'do objeto'} e envie o vídeo. O editor extrai quadros uniformes para o giro interativo.</p><div className="spin-view-selector" role="group" aria-label="Vista para editar"><button type="button" aria-pressed={view === 'side'} disabled={!ready || videoProgress !== null} onClick={() => changeView('side')}>Ao redor <span>{sideFrames.length} quadros</span></button><button type="button" aria-pressed={view === 'top'} disabled={!ready || videoProgress !== null} onClick={() => changeView('top')}>Por cima <span>{topFrames.length ? `${topFrames.length} quadros` : 'Adicionar 2º vídeo'}</span></button></div><div className="creation-hint"><strong>{view === 'top' ? 'Segundo vídeo · vista superior' : 'Vídeo principal · ao redor'}</strong><span>{view === 'top' ? 'Filme com a câmera mais alta e apontada para baixo. Envie uma volta completa para explorar o teto do carro ou o topo do objeto.' : 'Envie o giro ao redor. Depois selecione “Por cima” para adicionar outra perspectiva sem substituir esta.'}</span></div><div className="creation-field"><label>Velocidade automática</label><select value={rotationSpeed} onChange={event => { setInteractionPaused(false); setRotationSpeed(Number(event.target.value)) }}><option value={0}>Desativada</option><option value={180}>Rápida</option><option value={350}>Normal</option><option value={650}>Lenta</option></select></div><div className="creation-field"><label>Zoom</label><div className="zoom-row"><button onClick={() => setZoom(value => Math.max(.6, value - .1))} aria-label="Diminuir zoom"><Minus size={14} /></button><span>{Math.round(zoom * 100)}%</span><button onClick={() => setZoom(value => Math.min(2, value + .1))} aria-label="Aumentar zoom"><Plus size={14} /></button><button onClick={() => setZoom(1)} aria-label="Redefinir zoom"><RotateCcw size={13} /></button></div></div><SpinCaptureControls quality={quality} onQuality={setQuality} start={captureStart} onStart={setCaptureStart} end={captureEnd} onEnd={setCaptureEnd} busy={videoProgress !== null} onCancel={cancelImport} summary={captureReports[view] ? formatSpinCaptureReport(captureReports[view]) : captureSummary} stage={processingStage} onDownloadReport={captureReports[view] ? downloadCaptureReport : undefined} /><button className="button button-primary full-button" disabled={!ready || videoProgress !== null} onClick={() => inputRef.current?.click()}><Upload size={15} /> {videoProgress !== null ? `Preparando mídia · ${videoProgress}%` : 'Enviar vídeo ou fotos'}</button><input ref={inputRef} type="file" disabled={!ready || videoProgress !== null} hidden multiple accept="video/mp4,video/webm,video/quicktime,.mov,image/*" onChange={event => { void addMedia(event.target.files); event.currentTarget.value = '' }} />{videoProgress !== null && <div className="spin-video-progress" role="progressbar" aria-valuemin={0} aria-valuemax={100} aria-valuenow={videoProgress}><span style={{ width: `${videoProgress}%` }} /></div>}<div className="creation-hint"><strong>Captura recomendada</strong><span>Vídeo horizontal de 20–60 segundos, uma volta completa, objeto inteiro visível e distância constante. MP4, MOV ou WebM até 500 MB. Uma sequência de fotos continua aceita como alternativa.</span></div><div className="creation-field"><label htmlFor="spin-description">Descrição do produto</label><textarea id="spin-description" rows={3} maxLength={4000} placeholder="Conte o que torna este produto especial" value={description} onChange={event => setDescription(event.target.value)} /></div><div className="creation-field"><label htmlFor="spin-price">Preço ou chamada</label><input id="spin-price" maxLength={100} placeholder="Ex.: R$ 149,90 · Sob consulta" value={price} onChange={event => setPrice(event.target.value)} /></div>{ready && id && <button type="button" className="button button-outline full-button" disabled={!sideFrames.length} onClick={() => void previewSpin()}>Visualizar como visitante</button>}{ready && id && <SpinOfflineExport spin={{ id, title, kind, frames: sideFrames, topFrames, updatedAt: 0, zoom, rotationSpeed, description, price }} />}{ready && id && <ShowcasePublishControls kind="product_spin" item={{ id, title, kind, frames: sideFrames, topFrames, updatedAt: 0, zoom, rotationSpeed, description, price }} />}{error && <div className="editor-alert">{error}</div>}</aside>

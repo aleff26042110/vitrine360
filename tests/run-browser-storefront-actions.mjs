@@ -24,14 +24,14 @@ try {
     const user={id:'00000000-0000-4000-8000-000000000001',email:'admin-fixture@example.invalid'};
     export const supabase={auth:{getUser:async()=>({data:{user},error:null}),getSession:async()=>({data:{session:{user}},error:null}),onAuthStateChange:()=>({data:{subscription:{unsubscribe(){}}}})},from(table){
       const q={select:()=>q,eq:()=>q,order:()=>q,maybeSingle:async()=>({data:null,error:null}),then(resolve){return Promise.resolve({data:[],error:null}).then(resolve)}};return q;
-    },rpc:async(name,args)=>{
+    },rpc(name,args){return Object.assign((async()=>{
       if(name==='is_site_administrator')return {data:true,error:null};
       if(name==='publish_storefront'){
         window.publishedStorefront=args.p_document;
         return {data:args.p_document.slug,error:null};
       }
       return {data:null,error:null};
-    }};
+    })(),{abortSignal(){return this}})}};
   ` }))
   await adminContext.route('**/src/cloudShowcases.ts*', route => route.fulfill({ contentType: 'application/javascript', body: `
     export async function getOwnerShowcase(){return null}
