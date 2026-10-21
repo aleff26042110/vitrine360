@@ -1,0 +1,18 @@
+.preview-scene-heading{position:absolute;top:20px;left:24px;z-index:4;max-width:calc(100% - 110px);display:grid;gap:6px;padding:16px 20px;border-left:3px solid #63e8ef;border-radius:0 12px 12px 0;background:#081621de;color:#edf3ff;pointer-events:none}
+.preview-scene-heading>span{font-size:11px;color:#c3d4ec;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.preview-scene-heading>strong{font-size:24px;line-height:1.2;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.preview-scene-heading>small{font-size:11px;color:#c3d4ec}
+.preview-clean-toggle{position:absolute;top:18px;right:18px;z-index:9;display:grid;place-items:center;min-width:44px;min-height:44px;border:1px solid #6c849d;border-radius:12px;background:#081621e6;color:#edf3ff;cursor:pointer}
+.preview-room-navigation{position:absolute;bottom:122px;left:50%;transform:translateX(-50%);z-index:6;width:min(360px,calc(100% - 36px));display:flex;align-items:center;gap:12px;padding:10px;border:1px solid #526b86;border-radius:16px;background:#081621ed;color:#edf3ff;box-shadow:0 10px 30px #0003}
+.preview-room-navigation>div{flex:1;min-width:0;text-align:center;display:grid;gap:4px}
+.preview-room-navigation span{font-size:10px;color:#c3d4ec}
+.preview-room-navigation strong{font-size:14px;color:#edf3ff;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.preview-room-navigation button{display:grid;place-items:center;flex:none;width:44px;height:44px;border:1px solid #526b86;border-radius:10px;background:#17243a;color:#63e8ef;cursor:pointer}
+.studio-editor.preview-mode .tour-thumbnails{background:#081621ed;border:1px solid #526b86;border-radius:16px;padding:10px;bottom:14px}
+.studio-editor.preview-mode .tour-thumbnail{border-radius:10px;overflow:hidden;min-width:118px}
+.studio-editor.preview-mode .tour-thumbnail.selected{border-color:#63e8ef;box-shadow:0 0 0 1px #63e8ef}
+.studio-editor.preview-mode .viewer-controls,.studio-editor.preview-mode .video360-controls{bottom:212px}
+.studio-editor.preview-mode .tour-side-controls{top:82px;bottom:auto;right:18px;transform:none}
+.studio-editor.preview-mode.preview-clean :is(.tour-thumbnails,.tour-side-controls,.tour-map-card,.viewer-controls,.viewer-brand,.preview-scene-heading){display:none!important}
+@media(max-width:700px){.preview-scene-heading{top:16px;left:14px;max-width:calc(100% - 90px);padding:12px;gap:5px}.preview-scene-heading>strong{font-size:20px}.preview-scene-heading>small{font-size:10px}.preview-clean-toggle{right:14px;top:16px}.preview-room-navigation{width:calc(100% - 32px);bottom:116px}.studio-editor.preview-mode .tour-thumbnail{min-width:108px}.studio-editor.preview-mode .tour-thumbnails{width:calc(100% - 24px)}}
+@media(max-height:450px){.preview-scene-heading{padding:8px 12px;gap:3px}.preview-scene-heading>strong{font-size:17px}.preview-scene-heading>small{display:none}.studio-editor.preview-mode .tour-side-controls{flex-direction:row;top:16px;right:76px}.preview-scene-heading{max-width:calc(100% - 270px)}}

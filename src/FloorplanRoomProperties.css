@@ -1,0 +1,13 @@
+.floorplan-room-properties{margin:0;padding:14px;border:1px solid #dfe6ef;border-radius:12px;display:grid;gap:12px;color:#304b65;background:#f8faff}
+.floorplan-room-properties legend{padding:0 5px;font-size:13px;font-weight:700}
+.floorplan-room-properties label{display:grid;gap:6px;font-size:12px;line-height:1.5}
+.floorplan-room-properties input{min-width:0;width:100%;min-height:38px;padding:8px;border:1px solid #d4deeb;border-radius:7px;background:white;color:#233b54;font:inherit}
+.floorplan-room-properties input[type=color]{padding:4px;cursor:pointer}
+.floorplan-room-properties small{font-size:11px;line-height:1.6;color:#62758a}
+.floorplan-number-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.floorplan-board .floorplan-room{min-width:0;min-height:0}
+.floorplan-board .floorplan-room.selected{border-color:#245de5;box-shadow:0 0 0 3px #245de525}
+.floorplan-board .floorplan-room:focus-visible{outline:3px solid #245de5;outline-offset:3px}
+.floorplan-board .floorplan-room input{font-size:12px}
+.floorplan-aside>.floorplan-room-picker{display:grid;gap:6px;font-size:12px;color:#304b65}
+.floorplan-room-picker select{width:100%;min-height:38px;border:1px solid #d4deeb;border-radius:7px;padding:8px;background:#fff;color:#233b54}

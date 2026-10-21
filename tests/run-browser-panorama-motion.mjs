@@ -1,0 +1,37 @@
+import { chromium } from 'playwright-core'
+import assert from 'node:assert/strict'
+const browser = await chromium.launch({channel:'chrome',headless:true})
+const page = await browser.newPage({viewport:{width:1440,height:950}})
+const errors=[];page.on('pageerror',error=>errors.push(error.message))
+try {
+  await page.emulateMedia({reducedMotion:'no-preference'})
+  await page.goto('http://127.0.0.1:5188/explore')
+  await page.getByRole('button',{name:'Abrir tour interativo'}).click()
+  await page.waitForURL('**/p/*');const id=page.url().split('/').at(-1)
+  await page.locator('.public-panorama-canvas canvas').waitFor()
+  await page.evaluate(()=>{window.firstCanvas=document.querySelector('.public-panorama-canvas canvas')})
+  await page.locator('.tour-stage-navigation').getByRole('button',{name:'Próxima cena'}).click()
+  await page.waitForTimeout(500)
+  assert.ok(await page.evaluate(()=>window.firstCanvas===document.querySelector('.public-panorama-canvas canvas')),'Scene switches must reuse the actual viewer')
+  for(let i=0;i<3;i++){
+    await page.locator('.tour-stage-navigation').getByRole('button',{name:'Cena anterior'}).click()
+    await page.waitForTimeout(80)
+    await page.locator('.tour-stage-navigation').getByRole('button',{name:'Próxima cena'}).click()
+    await page.waitForTimeout(80)
+  }
+  await page.waitForTimeout(600)
+  assert.equal(await page.locator('.public-panorama-canvas canvas').count(),1)
+  assert.ok(await page.getByRole('button',{name:'Voltar à entrada',exact:true}).isVisible(),'Final scene hotspot must remain usable after interrupted transitions')
+  await page.goto('http://127.0.0.1:5188/tours/'+id+'/edit')
+  await page.locator('.pano-stage canvas').waitFor()
+  await page.getByRole('button',{name:'Aumentar zoom',exact:true}).click()
+  await page.getByRole('button',{name:'Diminuir zoom',exact:true}).click()
+  await page.waitForTimeout(300)
+  assert.equal(await page.locator('.pano-stage canvas').count(),1)
+  await page.emulateMedia({reducedMotion:'reduce'})
+  assert.equal(await page.evaluate(async()=>{const {panoramaTransitionOptions}=await import('/src/panoramaMotion.ts');return panoramaTransitionOptions().transitionDuration}),0)
+  await page.evaluate(()=>window.scrollTo(0,0))
+  await page.screenshot({path:'.tmp-ui/editor-motion-desktop.png'})
+  assert.deepEqual(errors,[])
+  console.log('PASS: real panorama viewer reuse, interrupted scene transitions, surviving hotspots, zoom controls and reduced-motion transition policy.')
+}finally{await browser.close()}

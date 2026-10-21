@@ -1,0 +1,45 @@
+{
+  "name": "vitrine360",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc -b && vite build",
+    "lint": "oxlint",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "preview": "vite preview",
+    "web:deploy": "npm run build && wrangler deploy --config cloudflare/wrangler.web.jsonc",
+    "web:check": "npm run build && wrangler deploy --config cloudflare/wrangler.web.jsonc --dry-run --outdir .tmp-ui/web-build",
+    "integrations:check": "node scripts/check-integrations.mjs",
+    "worker:dev": "wrangler dev --config cloudflare/wrangler.jsonc --local",
+    "worker:check": "wrangler deploy --config cloudflare/wrangler.jsonc --dry-run --outdir .tmp-ui/worker-build",
+    "worker:types": "wrangler types --config cloudflare/wrangler.jsonc cloudflare/worker-env.local.d.ts"
+  },
+  "dependencies": {
+    "@supabase/supabase-js": "^2.117.3",
+    "lucide-react": "^1.55.0",
+    "marzipano": "^0.10.2",
+    "react": "^19.2.8",
+    "react-dom": "^19.2.8",
+    "react-router-dom": "^7.18.4",
+    "three": "^0.186.1"
+  },
+  "devDependencies": {
+    "@electric-sql/pglite": "^0.5.8",
+    "@types/node": "^24.13.3",
+    "@types/react": "^19.2.18",
+    "@types/react-dom": "^19.2.7",
+    "@types/three": "^0.186.0",
+    "@vitejs/plugin-react": "^6.1.1",
+    "miniflare": "5.20261006.1-alpha",
+    "oxlint": "^1.81.0",
+    "pg": "8.23.1",
+    "playwright-core": "1.64.1",
+    "typescript": "~6.0.2",
+    "vite": "^8.3.0",
+    "vitest": "^5.0.3",
+    "wrangler": "4.149.0"
+  }
+}

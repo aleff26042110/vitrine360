@@ -1,0 +1,11 @@
+.showcase-zoom-control{display:grid;grid-template-columns:1fr auto;gap:9px;margin-top:17px;color:#53665e;font-size:11px}.showcase-zoom-control span{color:#71817a}.showcase-zoom-control input{grid-column:1/-1;width:100%;height:38px;accent-color:#0f766e;cursor:pointer}
+.showcase-spin-stage.detail-mode{touch-action:none;cursor:move}
+.showcase-spin-stage.dragging>img{transition:none!important}
+.showcase-detail-mode{position:absolute;z-index:4;left:16px;top:16px}
+.showcase-detail-mode button{min-height:42px;padding:8px 14px;border:1px solid #a6cfbe;border-radius:10px;background:#10241fee;color:#fff;font:inherit;font-size:12px;cursor:pointer}
+.showcase-public-viewer:has(.showcase-view-selector) .showcase-detail-mode{top:66px}
+.spin-frame-status{position:absolute;z-index:5;left:50%;top:42%;transform:translateX(-50%);max-width:85%;padding:10px 14px;border-radius:10px;background:#10241fee;color:white;font-size:12px;text-align:center;pointer-events:none}
+.spin-frame-status button{pointer-events:auto;display:block;margin:8px auto 0;min-height:40px;padding:8px 12px;border:1px solid #a6cfbe;border-radius:8px;background:#21483d;color:white;cursor:pointer}
+.controls-hidden .showcase-detail-mode{display:none}
+.showcase-spin-controls>span{white-space:nowrap;min-width:5ch}
+.showcase-spin-stage:has(.showcase-detail-mode) .showcase-stage-hint{top:auto;bottom:110px}

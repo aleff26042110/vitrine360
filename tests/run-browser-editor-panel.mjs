@@ -1,0 +1,75 @@
+import { chromium } from 'playwright-core'
+import assert from 'node:assert/strict'
+const browser = await chromium.launch({ channel: 'chrome', headless: true })
+const page = await browser.newPage({ viewport: { width: 1440, height: 950 } })
+const errors = []
+page.on('pageerror', error => errors.push(error.message))
+try {
+  await page.goto('http://127.0.0.1:5188/explore')
+  await page.getByRole('button', { name: 'Abrir tour interativo' }).click()
+  await page.waitForURL('**/p/*')
+  const tourId = page.url().split('/').at(-1)
+  await page.goto(`http://127.0.0.1:5188/tours/${tourId}/edit`)
+  await page.locator('.scene-select').nth(1).waitFor()
+  await page.locator('.pano-viewer canvas').waitFor()
+  const normalWidth = (await page.locator('.pano-stage').boundingBox()).width
+  assert.ok((await page.locator('.pano-stage').boundingBox()).height > 600,'Desktop viewer must use available vertical space')
+  await page.getByRole('button', { name: 'Modo de foco', exact: true }).click()
+  assert.ok((await page.locator('.pano-stage').boundingBox()).width > normalWidth + 300)
+  assert.equal(await page.locator('.scene-rail').isVisible(), false)
+  await page.getByRole('button', { name: 'Ajustes', exact: true }).click()
+  assert.equal(await page.getByRole('tab', { name: 'Estilo', exact: true }).getAttribute('aria-selected'), 'true')
+  await page.getByRole('button', { name: 'Mídia', exact: true }).click()
+  await page.getByRole('button', { name: 'Ordenar A–Z', exact: true }).click()
+  const sorted = await page.locator('.scene-name').allTextContents()
+  assert.deepEqual(sorted, [...sorted].sort((a,b)=>a.localeCompare(b,'pt-BR',{numeric:true})))
+  await page.getByRole('button', { name: 'Renomear', exact: true }).click()
+  await page.getByRole('textbox', { name: 'Nome base das cenas' }).fill('Ambiente')
+  await page.getByRole('button', { name: 'Aplicar aos nomes' }).click()
+  assert.deepEqual(await page.locator('.scene-name').allTextContents(), ['Ambiente 01', 'Ambiente 02'])
+  let savedNames
+  for(let attempt=0;attempt<40;attempt++) {
+    savedNames=await page.evaluate(async id=>{const {getProject}=await import('/src/projectStore.ts');return (await getProject(id))?.scenes.map(scene=>scene.name)},tourId)
+    if(savedNames?.join('|')==='Ambiente 01|Ambiente 02')break
+    await page.waitForTimeout(100)
+  }
+  assert.deepEqual(savedNames,['Ambiente 01','Ambiente 02'])
+  await page.reload()
+  await page.locator('.scene-select').nth(1).waitFor()
+  assert.deepEqual(await page.locator('.scene-name').allTextContents(), ['Ambiente 01', 'Ambiente 02'])
+  await page.waitForTimeout(1200) // Allow the panorama transition to complete before the visual capture.
+  await page.screenshot({path:'.tmp-ui/editor-panel-desktop.png',fullPage:true})
+  for (const size of [{width:375,height:844},{width:844,height:390}]) {
+    await page.setViewportSize(size)
+    assert.ok(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth), 'Tour must not overflow')
+    await page.getByRole('button', { name: 'Detalhes', exact: true }).click()
+    assert.ok(await page.getByRole('tab', { name: 'Informações', exact: true }).isVisible())
+  }
+  await page.setViewportSize({width:375,height:844})
+  await page.screenshot({path:'.tmp-ui/editor-panel-mobile.png',fullPage:true})
+  await page.setViewportSize({width:1440,height:950})
+  await page.goto('http://127.0.0.1:5188/explore')
+  await page.getByRole('button', { name: 'Abrir giro interativo' }).click()
+  await page.waitForURL('**/spin/*/view')
+  await page.goto(page.url().replace('/view','/edit'))
+  await page.locator('.spin-stage>img').waitFor()
+  await page.getByRole('button', { name: 'Detalhes', exact: true }).click()
+  assert.equal(await page.locator('#spin-description').evaluate(input=>input===document.activeElement),true)
+  await page.getByRole('button', { name: 'Modo de foco', exact: true }).click()
+  assert.equal(await page.locator('.creation-sidebar').isVisible(),false)
+  await page.getByRole('button', { name: 'Mostrar painéis', exact: true }).click()
+  await page.getByRole('button', { name: 'Publicação', exact: true }).click()
+  assert.equal(await page.locator('.showcase-publish-card').evaluate(panel=>panel===document.activeElement),true)
+  await page.screenshot({path:'.tmp-ui/spin-panel-desktop.png',fullPage:true})
+  await page.setViewportSize({width:375,height:844})
+  assert.ok(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),'Spin must not overflow')
+  await page.emulateMedia({reducedMotion:'reduce'})
+  await page.getByRole('button', { name: 'Ajustes', exact: true }).click()
+  await page.screenshot({path:'.tmp-ui/spin-panel-mobile.png',fullPage:true})
+  await page.getByRole('button', { name: 'Pré-visualizar', exact: true }).click()
+  await page.waitForURL('**/spin/*/view')
+  await page.locator('.showcase-spin-stage>img').waitFor()
+  assert.deepEqual(errors,[])
+  console.log('PASS: tour/spin studio navigation, focus mode, batch rename, alphabetical ordering, persistence, mobile/landscape, reduced motion and no JavaScript errors.')
+} catch(error) {console.error(page.url(),await page.locator('body').innerText());throw error}
+finally {await browser.close()}

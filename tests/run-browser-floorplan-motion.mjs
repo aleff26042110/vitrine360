@@ -1,0 +1,26 @@
+import { chromium } from 'playwright-core'
+import assert from 'node:assert/strict'
+const browser=await chromium.launch({channel:'chrome',headless:true})
+const page=await browser.newPage({viewport:{width:1440,height:950}})
+const errors=[];page.on('pageerror',error=>errors.push(error.message))
+try{
+ await page.goto('http://127.0.0.1:5188/floorplans/new')
+ await page.waitForURL('**/floorplans/*/edit')
+ await page.getByRole('button',{name:'Adicionar ambiente',exact:true}).click()
+ const room=page.locator('.floorplan-room'),board=await page.locator('.floorplan-board').boundingBox()
+ const initial=await room.evaluate(el=>({x:parseFloat(el.style.left),y:parseFloat(el.style.top)})),bounds=await room.boundingBox()
+ await page.mouse.move(bounds.x+bounds.width*.7,bounds.y+bounds.height*.7);await page.mouse.down()
+ await page.mouse.move(bounds.x+bounds.width*.7+35,bounds.y+bounds.height*.7+25,{steps:5})
+ const dragged=await room.evaluate(el=>({x:parseFloat(el.style.left),y:parseFloat(el.style.top)}))
+ assert.ok(Math.abs(dragged.x-initial.x-35/board.width*100)<.2,'Room must follow the pointer, without easing or grid jumps')
+ assert.ok(Math.abs(dragged.y-initial.y-25/board.height*100)<.2)
+ await page.mouse.up();await page.waitForTimeout(350)
+ assert.deepEqual(await room.evaluate(el=>({x:parseFloat(el.style.left),y:parseFloat(el.style.top)})),dragged,'Precise editing must not coast')
+ await room.focus();await page.keyboard.press('ArrowRight')
+ assert.ok(Math.abs(await room.evaluate(el=>parseFloat(el.style.left))-dragged.x-1)<.01)
+ await page.waitForTimeout(700);await page.reload();await room.waitFor()
+ assert.ok(Math.abs(await room.evaluate(el=>parseFloat(el.style.left))-dragged.x-1)<.01,'Adjusted positions must persist')
+ await page.setViewportSize({width:375,height:844});assert.ok(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth))
+ assert.deepEqual(errors,[])
+ console.log('PASS: pointer-locked floorplan drag, no unwanted inertia, keyboard precision, persistence and mobile width.')
+}finally{await browser.close()}

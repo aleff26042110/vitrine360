@@ -1,0 +1,7 @@
+Vitrine360 - atualização local
+Novos temas: Joalheria Luxo e Concessionária Premium.
+Modelos anteriores preservados.
+Migração SQL de validação em supabase/migrations/20261016150000_storefront_extra_templates.sql (NÃO executada).
+Não foram executados testes nem compilação, conforme solicitado.
+Fotos de capa personalizadas ainda não implementadas nesta versão.
+Arquivos de credenciais locais, cache de navegador, node_modules e builds foram omitidos por segurança e tamanho.

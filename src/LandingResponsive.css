@@ -1,0 +1,17 @@
+.landing-page {
+  overflow-x: clip;
+}
+
+.landing-hero > * {
+  min-width: 0;
+}
+
+.landing-product-preview {
+  max-width: 100%;
+}
+
+@media (max-width: 600px) {
+  .landing-hero h1 {
+    overflow-wrap: anywhere;
+  }
+}

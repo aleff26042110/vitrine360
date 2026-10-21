@@ -1,0 +1,67 @@
+import { chromium } from 'playwright-core'
+import assert from 'node:assert/strict'
+import { pathToFileURL } from 'node:url'
+import { resolve } from 'node:path'
+const browser = await chromium.launch({ channel: 'chrome', headless: true })
+const page = await browser.newPage({viewport:{width:1440,height:950}})
+const errors=[];page.on('pageerror',error=>errors.push(error.message))
+async function frame(stage){return Number((await stage.locator('img').getAttribute('alt')).match(/quadro (\d+)/)[1])}
+async function flick(stage){
+  const bounds=await stage.boundingBox()
+  await page.mouse.move(bounds.x+bounds.width*.6,bounds.y+bounds.height*.5)
+  await page.mouse.down()
+  await page.mouse.move(bounds.x+bounds.width*.35,bounds.y+bounds.height*.5,{steps:12})
+  await page.mouse.up()
+}
+async function verify(stage){
+  await page.emulateMedia({reducedMotion:'no-preference'})
+  await stage.evaluate(el=>{window.motionTrace=[];for(const type of ['pointerdown','pointermove','pointerup','lostpointercapture'])el.addEventListener(type,event=>window.motionTrace.push({type,time:performance.now(),x:event.clientX}));window.motionFilter=getComputedStyle(el.querySelector('img')).filter})
+  await flick(stage)
+  const released=await frame(stage)
+  await page.waitForTimeout(200)
+  assert.notEqual(await frame(stage),released,'Fast release must coast rather than stop abruptly: '+JSON.stringify(await page.evaluate(()=>({events:window.motionTrace,filter:window.motionFilter}))))
+  await page.waitForTimeout(850)
+  const stopped=await frame(stage);await page.waitForTimeout(200)
+  assert.equal(await frame(stage),stopped,'Momentum must settle instead of loop forever')
+  await page.emulateMedia({reducedMotion:'reduce'})
+  await flick(stage)
+  const reduced=await frame(stage);await page.waitForTimeout(350)
+  assert.equal(await frame(stage),reduced,'Reduced motion must disable release momentum')
+  await page.emulateMedia({reducedMotion:'no-preference'})
+}
+try{
+  await page.goto('http://127.0.0.1:5188/explore')
+  await page.getByRole('button',{name:'Abrir giro interativo'}).click()
+  await page.waitForURL('**/spin/*/view')
+  const preview=page.url()
+  await page.locator('.showcase-spin-stage>img').waitFor()
+  await verify(page.locator('.showcase-spin-stage'))
+  await page.goto(preview.replace('/view','/edit'))
+  await page.locator('.spin-stage>img').waitFor()
+  await verify(page.locator('.spin-stage'))
+  await flick(page.locator('.spin-stage'))
+  await page.getByRole('button',{name:'Quadro anterior',exact:true}).click()
+  const interrupted=await frame(page.locator('.spin-stage'));await page.waitForTimeout(400)
+  assert.equal(await frame(page.locator('.spin-stage')),interrupted,'A button must interrupt coasting immediately')
+  await page.getByRole('button',{name:'Iniciar rotação automática'}).click()
+  const autoFrame=await frame(page.locator('.spin-stage'));await page.waitForTimeout(500)
+  assert.notEqual(await frame(page.locator('.spin-stage')),autoFrame,'Explicit play must advance the sequence')
+  await page.getByRole('button',{name:'Pausar rotação automática'}).click()
+  const paused=await frame(page.locator('.spin-stage'));await page.waitForTimeout(450)
+  assert.equal(await frame(page.locator('.spin-stage')),paused,'Pause must stop the automatic clock immediately')
+  await page.setViewportSize({width:375,height:844})
+  assert.ok(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth))
+  const transition=await page.locator('.spin-stage>img').evaluate(img=>getComputedStyle(img).transitionProperty)
+  assert.ok(transition.split(',').every(property=>['transform','opacity'].includes(property.trim())))
+  const download=page.waitForEvent('download')
+  await page.getByRole('button',{name:'Baixar visualizador offline'}).click()
+  const offlinePath=resolve('.tmp-ui/offline-motion-test.html');await (await download).saveAs(offlinePath)
+  await page.goto(pathToFileURL(offlinePath).href)
+  await verify(page.locator('#stage'))
+  await flick(page.locator('#stage'));await page.getByRole('button',{name:'Próximo quadro'}).click()
+  const offlineStopped=await frame(page.locator('#stage'));await page.waitForTimeout(350)
+  assert.equal(await frame(page.locator('#stage')),offlineStopped,'Offline buttons must interrupt momentum')
+  assert.deepEqual(errors,[])
+  console.log('PASS: editor, public and offline spin release momentum, bounded settling, immediate button interruption, reduced motion, mobile width and compositor-only image transitions.')
+}catch(error){console.error(page.url(),await page.locator('body').innerText());throw error}
+finally{await browser.close()}

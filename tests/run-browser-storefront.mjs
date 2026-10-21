@@ -1,0 +1,103 @@
+import { chromium } from 'playwright-core'
+import assert from 'node:assert/strict'
+import { mkdir, writeFile } from 'node:fs/promises'
+
+const base = process.env.VITRINE_TEST_URL || 'http://127.0.0.1:5188'
+await mkdir('.tmp-ui/storefront', { recursive: true })
+const browser = await chromium.launch({ channel: 'chrome', headless: true })
+const context = await browser.newContext({ viewport: { width: 1536, height: 1100 } })
+const page = await context.newPage()
+const errors = []
+const checks = []
+page.on('pageerror', error => errors.push(error.message))
+try {
+  await page.goto(`${base}/minha-vitrine`)
+  await page.getByLabel('Nome da vitrine', { exact: true }).waitFor()
+  await page.getByLabel('Nome da vitrine', { exact: true }).fill('Atelier Horizonte')
+  await page.getByLabel('Frase de apresentação', { exact: true }).fill('Objetos e veículos sob o seu olhar.')
+  await page.getByLabel('Endereço da sua vitrine', { exact: true }).fill('atelier-horizonte')
+  assert.ok((await page.locator('.sf-brand').innerText()).endsWith('Atelier Horizonte'))
+  await page.getByRole('button', { name: 'Aparência', exact: true }).click()
+  await page.getByRole('button', { name: /Showroom Mais espaço/ }).click()
+  await page.getByRole('button', { name: 'Aplicar paleta Noturna' }).click()
+  await page.getByRole('button', { name: 'Contemporânea', exact: false }).filter({ has: page.locator('span') }).last().click()
+  assert.equal(await page.locator('.storefront-view').evaluate(el => getComputedStyle(el).backgroundColor), 'rgb(23, 29, 36)')
+  assert.equal(await page.locator('.storefront-showroom').count(), 1)
+  await page.getByRole('button', { name: 'Prévia no celular' }).click()
+  assert.ok((await page.locator('.storefront-preview-canvas').boundingBox()).width <= 375)
+  await page.getByRole('button', { name: 'Veículos', exact: true }).click()
+  assert.equal(await page.locator('.sf-item').count(), 1)
+  await page.getByRole('button', { name: 'Todos', exact: true }).click()
+  assert.equal(await page.locator('.sf-item').count(), 2)
+  await page.getByRole('button', { name: 'Salvar rascunho' }).click()
+  await page.getByRole('status').filter({ hasText: 'Rascunho salvo neste navegador' }).waitFor()
+  await page.reload()
+  await page.getByLabel('Nome da vitrine', { exact: true }).waitFor()
+  assert.equal(await page.getByLabel('Nome da vitrine', { exact: true }).inputValue(), 'Atelier Horizonte')
+  assert.equal(await page.locator('.storefront-showroom').count(), 1)
+  checks.push('Identity, template, colors and typography persist after saving and reloading')
+  await page.getByRole('button', { name: 'Itens 360°', exact: true }).click()
+  assert.equal(await page.getByRole('link', { name: 'Criar veículo 360°' }).getAttribute('href'), '/spin/new')
+  await page.getByRole('button', { name: 'Publicar vitrine' }).click()
+  await page.getByRole('alert').filter({ hasText: /item publicado/ }).waitFor()
+  assert.equal(await page.getByRole('button', { name: 'Copiar link' }).count(), 0)
+  checks.push('Example images cannot be published as real items; object and vehicle creation links exist')
+  await page.evaluate(async () => {
+    const { saveSpin } = await import('/src/projectStore.ts')
+    const canvas = window.document.createElement('canvas')
+    canvas.width = 100; canvas.height = 100
+    const ctx = canvas.getContext('2d')
+    const frames = []
+    for (const [index, color] of ['#153a32', '#8a5a36'].entries()) {
+      ctx.fillStyle = color; ctx.fillRect(0, 0, 100, 100)
+      const blob = await new Promise(resolve => canvas.toBlob(resolve, 'image/png'))
+      frames.push(new File([blob], `frame-${index}.png`, { type: 'image/png' }))
+    }
+    await saveSpin({ id: '20000000-0000-4000-8000-000000000001', title: 'Objeto de teste', kind: 'Product Spin', frames, updatedAt: Date.now(), zoom: 1, rotationSpeed: 0 })
+    await saveSpin({ id: '20000000-0000-4000-8000-000000000002', title: 'Veículo de teste', kind: 'Vehicle Spin', frames, updatedAt: Date.now(), zoom: 1, rotationSpeed: 0 })
+  })
+  await page.reload()
+  await page.getByRole('button', { name: 'Itens 360°', exact: true }).click()
+  await page.locator('.storefront-inventory-item').filter({ hasText: 'Objeto de teste' }).locator('input').check()
+  await page.locator('.storefront-inventory-item').filter({ hasText: 'Veículo de teste' }).locator('input').check()
+  assert.equal(await page.locator('.sf-item').count(), 2)
+  assert.equal(await page.locator('.sf-example-note').count(), 0)
+  const localVehicle = page.getByRole('link', { name: 'Explorar Veículo de teste em 360 graus' })
+  assert.equal(await localVehicle.getAttribute('href'), '/spin/20000000-0000-4000-8000-000000000002/view')
+  const viewer = await context.newPage()
+  await viewer.goto(`${base}${await localVehicle.getAttribute('href')}`)
+  await viewer.locator('.showcase-spin-stage>img').waitFor()
+  await viewer.locator('.showcase-frame-nav').getByRole('button', { name: 'Próximo quadro', exact: true }).click()
+  assert.match(await viewer.locator('.showcase-frame-nav>span').innerText(), /2 de 2/)
+  await viewer.close()
+  await page.getByRole('button', { name: 'Publicar vitrine' }).click()
+  await page.getByRole('alert').filter({ hasText: /Entre na sua conta/ }).waitFor()
+  checks.push('Real local object and vehicle selection opens the existing interactive 360 viewer; next-frame control works')
+  await page.getByRole('button', { name: 'Aparência', exact: true }).click()
+  await page.screenshot({ path: '.tmp-ui/storefront/editor-desktop.png', fullPage: true })
+  for (const width of [375, 768, 1024, 1536]) {
+    await page.setViewportSize({ width, height: 1000 })
+    assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1), `Editor overflow at ${width}`)
+  }
+  await page.setViewportSize({ width: 375, height: 844 })
+  await page.screenshot({ path: '.tmp-ui/storefront/editor-mobile.png', fullPage: true })
+  await page.setViewportSize({ width: 1440, height: 1000 })
+  const document = { version: 1, name: 'Vitrine de teste', slug: 'vitrine-teste', headline: 'Sua coleção, do seu jeito.', description: 'Teste de renderização pública com resposta simulada.', contactUrl: 'https://example.com', template: 'gallery', background: '#FFFFFF', accent: '#3657A5', font: 'modern', itemIds: [] }
+  await page.route('**/rest/v1/rpc/load_public_storefront', async route => {
+    const slug = route.request().postDataJSON()?.p_slug
+    await route.fulfill({ contentType: 'application/json', body: JSON.stringify(slug === 'vitrine-teste' ? { document, items: [{ id: '10000000-0000-4000-8000-000000000001', title: 'Veículo publicado', description: 'Descrição pública', price_label: 'Sob consulta', kind: 'product_spin', spin_kind: 'vehicle', slug: 'veiculo-publicado', asset_paths: [] }] } : null) })
+  })
+  await page.goto(`${base}/v/vitrine-teste`)
+  await page.getByRole('heading', { name: 'Sua coleção, do seu jeito.' }).waitFor()
+  assert.equal(await page.locator('.storefront-gallery').count(), 1)
+  const item = page.getByRole('link', { name: 'Explorar Veículo publicado em 360 graus' })
+  assert.equal(await item.getAttribute('href'), '/showcase/veiculo-publicado')
+  assert.equal(await page.locator('.storefront-builder').count(), 0)
+  await page.screenshot({ path: '.tmp-ui/storefront/public-simulated.png', fullPage: true })
+  await page.goto(`${base}/v/nao-existe`)
+  await page.getByRole('heading', { name: 'Esta vitrine ainda não está no ar.' }).waitFor()
+  checks.push('Public rendering tested with simulated RPC: per-creator theme, vehicle link, missing storefront state')
+  assert.deepEqual(errors, [])
+  await writeFile('.tmp-ui/storefront/checks.json', JSON.stringify({ checks, errors, backend: 'Public RPC simulated in browser; real SQL ownership and publication tested separately in PGlite.' }, null, 2))
+  console.log('PASS', checks)
+} finally { await context.close(); await browser.close() }

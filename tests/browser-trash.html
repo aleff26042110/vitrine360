@@ -1,0 +1,39 @@
+<!doctype html>
+<html lang="pt-BR"><meta charset="utf-8"><title>Contrato de lixeira IndexedDB</title><pre id="result">RUNNING</pre>
+<script type="module">
+import { saveProject, getProject, listProjects, setProjectTrashed, deleteProject, duplicateProject } from '../src/projectStore.ts'
+const output = document.querySelector('#result')
+const id = `trash-check-${crypto.randomUUID()}`
+let duplicateId
+const assert = (condition, message) => { if (!condition) throw new Error(message) }
+try {
+  const file = new File(['original image bytes'], 'sala.jpg', { type: 'image/jpeg' })
+  const project = { id, title: 'Teste de recuperação', updatedAt: Date.now(), activeSceneId: 'scene', initialSceneId: 'scene', published: true, scenes: [{ id: 'scene', name: 'Sala', file, width: 4000, height: 2000, mode: 'panorama', approximate: false }], hotspotsByScene: { scene: [{ id: 'spot', yaw: 0.3, pitch: 0.1, label: 'Vídeo', embedUrl: 'https://vimeo.com/123456789' }] } }
+  await saveProject(project)
+  const copy = await duplicateProject(id)
+  duplicateId = copy.id
+  assert(copy.id !== id && copy.scenes[0].id !== 'scene', 'IDs da cópia colidem com o original')
+  assert(copy.initialSceneId === copy.scenes[0].id && copy.activeSceneId === copy.scenes[0].id, 'Cenas inicial e ativa não foram remapeadas')
+  assert(copy.hotspotsByScene[copy.scenes[0].id][0].id !== 'spot', 'ID do hotspot foi reutilizado')
+  assert(copy.published === false && await copy.scenes[0].file.text() === await file.text(), 'Cópia perdeu bytes ou foi publicada')
+  await saveProject({ ...copy, title: 'Cópia alterada' })
+  assert((await getProject(id)).title === project.title, 'Editar cópia alterou o original')
+  await setProjectTrashed(id, true)
+  const removed = await getProject(id)
+  assert(removed.deletedAt && removed.published === false, 'Remoção não desativou a prévia')
+  let rejected = false
+  try { await saveProject({ ...project, title: 'Escrita de aba antiga' }) } catch { rejected = true }
+  assert(rejected, 'Salvamento antigo sobrescreveu a lixeira')
+  await setProjectTrashed(id, false)
+  const restored = await getProject(id)
+  assert(!restored.deletedAt && restored.published === false, 'Restauração incorreta')
+  assert(restored.title === project.title, 'Título foi sobrescrito')
+  assert(await restored.scenes[0].file.text() === await file.text(), 'Bytes originais foram alterados')
+  assert(JSON.stringify(restored.hotspotsByScene) === JSON.stringify(project.hotspotsByScene), 'Hotspots foram alterados')
+  assert((await listProjects()).some(item => item.id === id), 'Projeto não está listado')
+  await deleteProject(id)
+  assert(await getProject(id) === undefined, 'Exclusão definitiva falhou')
+  output.textContent = 'PASS: trash, restore, original bytes, hotspots, stale save protection, permanent deletion'
+} catch (cause) { output.textContent = `FAIL: ${cause.message}` }
+finally { await deleteProject(id).catch(() => undefined); if (duplicateId) await deleteProject(duplicateId).catch(() => undefined) }
+</script></html>

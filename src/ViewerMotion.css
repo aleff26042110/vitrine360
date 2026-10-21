@@ -1,0 +1,13 @@
+/* A single timing family for viewer feedback; direct manipulation has no easing. */
+:is(.studio-editor,.public-showcase-page,.public-tour-page,.creation-page) button{touch-action:manipulation;transition:background-color 150ms ease,opacity 150ms ease,transform 150ms cubic-bezier(.22,1,.36,1)}
+:is(.studio-editor,.public-showcase-page,.public-tour-page,.creation-page) button:active:not(:disabled):not(.pano-hotspot){transform:scale(.97);transition-duration:0ms}
+:is(.studio-editor,.public-tour-page) .pano-hotspot{transition:background-color 150ms ease,opacity 150ms ease}
+.showcase-spin-stage,.spin-stage{touch-action:pan-y}
+.showcase-spin-stage>img,.spin-stage>img,.flat-photo-viewer>img{transition:transform 240ms cubic-bezier(.22,1,.36,1);backface-visibility:hidden}
+.spin-stage.dragging>img{transition:none}
+.studio-spin .spin-stage>img{filter:none;transition:transform 240ms cubic-bezier(.22,1,.36,1)}
+.studio-spin .spin-stage.dragging>img{transition:none}
+.floorplan-room.is-dragging{cursor:grabbing;z-index:2;box-shadow:0 12px 24px #153d2926}
+.scene-list,.spin-frames,.public-tour-thumbnails{overscroll-behavior-x:contain;scroll-behavior:smooth}
+@media(hover:hover) and (pointer:fine){.studio-dock button:hover,.studio-dock-bottom a:hover{color:#e3ffed}.viewer-controls button:hover,.showcase-spin-controls button:hover{background:#255a49}}
+@media(prefers-reduced-motion:reduce){:is(.studio-editor,.public-showcase-page,.public-tour-page,.creation-page) *, .scene-list,.spin-frames,.public-tour-thumbnails{transition:none!important;scroll-behavior:auto!important}:is(.studio-editor,.public-showcase-page,.public-tour-page,.creation-page) button:active:not(.pano-hotspot){transform:none!important}}

@@ -1,0 +1,3 @@
+.model-canvas-host{position:absolute;inset:0;overflow:hidden}
+.model-canvas-host canvas{display:block;width:100%;height:100%}
+.model-stage>.model-loading,.model-stage>.model-title-overlay{z-index:1}

@@ -1,0 +1,20 @@
+.feature-dialog-modal {
+  margin: auto;
+  max-width: calc(100vw - 36px);
+  max-height: calc(100dvh - 36px);
+}
+
+.feature-dialog-modal::backdrop {
+  background: #0a221cb3;
+  backdrop-filter: blur(3px);
+}
+
+.app-shell .feature-dialog-modal > p {
+  font-size: 14px;
+  line-height: 1.6;
+}
+
+.feature-dialog-modal .dialog-close {
+  min-width: 44px;
+  min-height: 44px;
+}

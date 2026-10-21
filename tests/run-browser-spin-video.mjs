@@ -1,0 +1,70 @@
+import { chromium } from 'playwright-core';
+import assert from 'node:assert/strict';
+(async () => {
+  const browser = await chromium.launch({ channel: 'chrome', headless: true });
+  const page = await browser.newPage({ viewport: { width: 1440, height: 900 } });
+  const errors = []; page.on('pageerror', error => errors.push(error.message));
+  try {
+    await page.goto('http://127.0.0.1:5188/spin/top-view-test/edit');
+    await page.waitForFunction(() => document.querySelector('input[type=file]')?.disabled === false);
+    await page.locator('input[type=file]').setInputFiles(Array.from({ length: 6 }, (_, i) => ({ name: `side-${i}.svg`, mimeType: 'image/svg+xml', buffer: Buffer.from(`<svg xmlns="http://www.w3.org/2000/svg" width="600" height="400"><rect width="600" height="400" fill="white"/><rect x="60" y="160" width="480" height="140" rx="60" fill="teal"/><text x="250" y="360" font-size="40">SIDE ${i}</text></svg>`) })));
+    await page.getByRole('slider', { name: 'Ângulo do produto' }).fill('3');
+    await page.getByRole('button', { name: /Por cima/ }).click();
+    assert.equal(await page.locator('.spin-frame').count(), 0);
+    // A real second video enters the same extraction pipeline, without overwriting side frames.
+    await page.evaluate(async () => {
+      const canvas = document.createElement('canvas'); canvas.width = 480; canvas.height = 320;
+      const context = canvas.getContext('2d'); const stream = canvas.captureStream(12);
+      const recorder = new MediaRecorder(stream, { mimeType: 'video/webm' }); const chunks = [];
+      recorder.ondataavailable = event => chunks.push(event.data);
+      const stopped = new Promise(resolve => { recorder.onstop = resolve }); recorder.start();
+      const draw = () => { context.fillStyle = 'white'; context.fillRect(0, 0, 480, 320); context.fillStyle = '#bb6838'; context.fillRect(60, 60, 360, 200); context.fillStyle = 'white'; context.font = '40px sans-serif'; context.fillText('TOP VIEW', 130, 180); };
+      draw(); const timer = setInterval(draw, 80);
+      await new Promise(resolve => setTimeout(resolve, 1500)); recorder.stop(); await stopped;
+      clearInterval(timer); stream.getTracks().forEach(track => track.stop());
+      const files = new DataTransfer(); files.items.add(new File(chunks, 'top-view.webm', { type: 'video/webm' }));
+      document.querySelector('.spin-workspace').dispatchEvent(new DragEvent('drop', { bubbles: true, cancelable: true, dataTransfer: files }));
+    });
+    await page.waitForFunction(() => document.querySelectorAll('.spin-frame').length === 48);
+    await page.getByRole('button', { name: /Ao redor/ }).click();
+    assert.equal(await page.locator('.spin-frame').count(), 6);
+    await page.getByRole('slider', { name: 'Ângulo do produto' }).fill('3');
+    await page.getByRole('button', { name: 'Visualizar como visitante' }).click();
+    await page.waitForURL('**/spin/top-view-test/view');
+    await page.getByRole('button', { name: 'Por cima', exact: true }).waitFor();
+    await page.getByRole('slider', { name: 'Ângulo do produto' }).fill('3');
+    await page.getByRole('button', { name: 'Por cima', exact: true }).click();
+    assert.equal(await page.getByRole('slider', { name: 'Ângulo do produto' }).inputValue(), '24');
+    await page.waitForFunction(() => document.querySelector('.showcase-spin-stage>img')?.alt.includes('por cima, quadro 25 de 48'));
+    assert.match(await page.locator('.showcase-spin-stage>img').getAttribute('alt'), /por cima, quadro 25 de 48/);
+    await page.getByRole('button', { name: 'Reproduzir giro' }).click();
+    await page.getByRole('button', { name: 'Pausar giro' }).click();
+    await page.getByRole('button', { name: 'Entrar em tela cheia' }).click();
+    await page.getByRole('button', { name: 'Ao redor', exact: true }).click();
+    await page.waitForFunction(() => document.querySelector('.showcase-spin-stage>img')?.alt.includes('ao redor'));
+    assert.match(await page.locator('.showcase-spin-stage>img').getAttribute('alt'), /ao redor/);
+    await page.getByRole('button', { name: 'Sair da tela cheia' }).click();
+    await page.reload();
+    await page.getByRole('button', { name: 'Por cima', exact: true }).click();
+    await page.waitForFunction(() => document.querySelector('.showcase-spin-stage>img')?.alt.includes('de 48'));
+    assert.match(await page.locator('.showcase-spin-stage>img').getAttribute('alt'), /de 48/);
+    await page.getByRole('slider', { name: 'Ângulo do produto' }).fill('24');
+    await page.waitForFunction(() => {
+      const image = document.querySelector('.showcase-spin-stage>img');
+      if (!image.complete || !image.naturalWidth) return false;
+      const canvas = document.createElement('canvas'); canvas.width = image.naturalWidth; canvas.height = image.naturalHeight;
+      const context = canvas.getContext('2d'); context.drawImage(image, 0, 0);
+      const pixel = context.getImageData(100, 100, 1, 1).data;
+      return pixel[0] > 130 && pixel[1] > 50 && pixel[1] < 180;
+    });
+    await page.setViewportSize({ width: 390, height: 844 });
+    await page.screenshot({ path: '.tmp-ui/spin-top-view-mobile.png', fullPage: true });
+    assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth));
+    await page.getByRole('link', { name: 'Voltar à edição' }).click();
+    await page.getByRole('button', { name: /Ao redor.*6 quadros/ }).waitFor();
+    await page.getByRole('button', { name: /Por cima.*48 quadros/ }).click();
+    assert.equal(await page.locator('.spin-frame').count(), 48);
+    assert.deepEqual(errors, []);
+    console.log('PASS: second real WebM, independent side/top frames, angle preservation, preview, fullscreen perspective switch, reload persistence and mobile layout');
+  } finally { await browser.close(); }
+})().catch(error => { console.error(error); process.exitCode = 1; });

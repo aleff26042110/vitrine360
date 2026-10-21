@@ -1,0 +1,45 @@
+/* Tour-specific chrome; preserve original colors and proportions of captured media. */
+.studio-editor .tour-scene-search{display:grid;gap:10px;margin-bottom:16px}
+.tour-scene-search label{display:flex;align-items:center;gap:8px;border:1px solid var(--future-line);border-radius:10px;padding:0 10px;background:var(--future-bg);color:var(--future-muted)}
+.studio-editor .tour-scene-search input{width:100%;min-width:0;border:0;background:transparent;padding:12px 0;font:inherit;font-size:12px}
+.tour-scene-search>div{display:flex;gap:6px}
+.tour-scene-search button{flex:1;min-height:38px;border:1px solid var(--future-line);border-radius:8px;background:var(--future-panel);color:var(--future-muted);font:inherit;font-size:11px;cursor:pointer}
+.tour-scene-search button[aria-pressed=true]{border-color:var(--future-cyan);color:var(--future-cyan);background:#63e8ef12}
+.tour-preparation{padding:16px;margin-top:20px;border-top:1px solid var(--future-line);background:var(--future-panel);border-radius:0 0 12px 12px}
+.tour-preparation-heading{display:flex;align-items:center;justify-content:space-between;gap:10px;font-size:12px}
+.tour-preparation-heading>span{color:var(--future-cyan)}
+.tour-preparation ul{list-style:none;padding:0;margin:14px 0;display:grid;gap:12px}
+.tour-preparation li{display:flex;align-items:flex-start;gap:8px;color:var(--future-text);font-size:11px;line-height:1.5}
+.tour-preparation li svg{flex-shrink:0;color:var(--future-cyan);margin-top:1px}
+.tour-preparation p,.tour-preparation small{color:var(--future-muted);font-size:11px;line-height:1.6}
+.tour-preparation button{width:100%;min-height:42px;margin:10px 0;background:transparent;border:1px solid var(--future-cyan);border-radius:8px;color:var(--future-cyan);font:inherit;font-size:12px;cursor:pointer}
+.tour-preparation small{display:block;font-size:10px}
+.tour-no-results{color:var(--future-muted);font-size:12px;line-height:1.6;padding:12px 0}
+.studio-editor .tour-scene-type{position:absolute;bottom:43px;left:8px;color:white;background:#081621e6;padding:4px 7px;border-radius:5px;font-size:9px}
+.studio-editor .tour-stage-actions{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:12px 18px;color:var(--future-muted);font-size:11px}
+.tour-stage-actions>div{display:flex;gap:8px;flex-wrap:wrap}
+.tour-stage-actions button{min-height:40px;padding:0 12px;background:var(--future-panel);border:1px solid var(--future-line);border-radius:8px;color:var(--future-text);font:inherit;font-size:11px;cursor:pointer}
+.studio-editor button:disabled{cursor:not-allowed;opacity:.5}
+:is(.studio-editor,.public-tour-page) .pano-hotspot.hotspot-arrow{width:calc(44px * var(--hotspot-scale,1));height:calc(44px * var(--hotspot-scale,1));border-radius:50%;background:#103d56e6;border:2px solid #c4faff;box-shadow:0 3px 16px #08162170}
+:is(.studio-editor,.public-tour-page) .pano-hotspot.hotspot-arrow>span{display:block;width:20px;height:14px;border:0;border-radius:0;background:#c4faff;transform:none;clip-path:polygon(0 70%,50% 0,100% 70%,82% 100%,50% 48%,18% 100%)}
+:is(.studio-editor,.public-tour-page) .pano-hotspot.hotspot-arrow:hover{background:#18627f}
+:is(.studio-editor,.public-tour-page) .pano-hotspot:focus-visible{outline:3px solid #fff;outline-offset:4px}
+.studio-editor .pano-stage{height:calc(100dvh - 270px)}
+@media(min-width:1400px){.studio-editor:not(.preview-mode):not(.studio-focus) .editor-workspace{grid-template-columns:72px 264px minmax(0,1fr) 252px}}
+@media(max-width:820px){.studio-editor .tour-stage-actions{padding:12px;flex-wrap:wrap}.studio-editor .pano-stage{height:55dvh}.tour-preparation{margin-top:12px}.tour-scene-search button{min-height:44px}}
+
+/* Visitor mode owns its viewport; editor dimensions must never size this stage. */
+.studio-editor.preview-mode{height:100dvh;min-height:0;display:flex;flex-direction:column;overflow:hidden}
+.studio-editor.preview-mode .editor-topbar{position:relative;flex:none;min-height:64px;height:64px;padding:10px 16px}
+.studio-editor.preview-mode .editor-top-actions{display:flex;margin-left:auto;flex-basis:auto}
+.studio-editor.preview-mode .editor-top-actions .button{display:inline-flex!important}
+.studio-editor.preview-mode .preview-brand strong{color:var(--future-text)}
+.studio-editor.preview-mode .editor-workspace{flex:1;min-height:0;display:block}
+.studio-editor.preview-mode .editor-canvas-area{height:100%;min-height:0;position:relative;padding:0}
+.studio-editor.preview-mode .pano-stage{height:100%!important;min-height:0!important;width:100%;margin:0;border:0;border-radius:0;box-shadow:none}
+.studio-editor.preview-mode .flat-action-card{display:none}
+.studio-editor.preview-mode .viewer-controls{bottom:116px;right:18px}
+.studio-editor.preview-mode .video360-controls{bottom:116px}
+.studio-editor.preview-mode .tour-map-card{max-height:calc(100% - 130px)}
+.studio-editor.preview-mode .editor-alert{top:12px;z-index:12}
+@media(max-width:700px){.studio-editor.preview-mode .preview-badge{display:none}.studio-editor.preview-mode .editor-topbar{flex-wrap:nowrap;gap:8px;padding:8px 12px}.studio-editor.preview-mode .editor-top-actions .button{padding:8px 10px;font-size:11px}.studio-editor.preview-mode .tour-thumbnails{width:calc(100% - 24px)}.studio-editor.preview-mode .tour-side-controls{top:12px;bottom:auto;transform:none}.studio-editor.preview-mode .tour-map-card{max-width:calc(100% - 72px)}}
