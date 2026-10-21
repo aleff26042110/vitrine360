@@ -1,5 +1,9 @@
 # Vitrine360
 
+Site público: [abrir Vitrine360](https://vitrine360-web.vitrine360-654558de.workers.dev).
+
+Código: [aleff26042110/vitrine360](https://github.com/aleff26042110/vitrine360), branch principal `main`. Hospedagem e atualização: [docs/PUBLICACAO.md](docs/PUBLICACAO.md).
+
 ## Minha Vitrine
 
 A área `/minha-vitrine` permite a cada criador escolher modelo (Editorial, Galeria ou Showroom), paleta, cores próprias, tipografia, nome, apresentação e itens de objetos/veículos em 360°. A prévia é atualizada ao vivo e oferece enquadramento de computador ou celular.
