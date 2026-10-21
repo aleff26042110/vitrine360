@@ -4,7 +4,7 @@ Código em repositório GitHub com branch principal `main`; frontend publicado n
 
 Site: https://vitrine360-web.vitrine360-654558de.workers.dev
 
-Repositório privado: https://github.com/aleff26042110/vitrine360
+Repositório público: https://github.com/aleff26042110/vitrine360
 
 ## Preparação
 
