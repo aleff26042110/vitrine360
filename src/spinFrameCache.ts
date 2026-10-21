@@ -29,6 +29,13 @@ export async function loadSpinFrame(url: string, signal: AbortSignal, blobs?: Bl
   const src = URL.createObjectURL(blob)
   const image = new Image()
   image.decoding = 'async'
+  const loaded = new Promise<void>((resolve, reject) => {
+    image.onload = () => {
+      if (image.naturalWidth && image.naturalHeight) resolve()
+      else reject(new SpinFrameError('O quadro recebido não possui dimensões válidas.'))
+    }
+    image.onerror = () => reject(new SpinFrameError('O quadro recebido não pôde ser aberto como imagem.'))
+  })
   let rejectAbort!: (reason: unknown) => void
   const aborted = new Promise<never>((_resolve, reject) => { rejectAbort = reject })
   const abort = () => { image.removeAttribute('src'); rejectAbort(signal.reason ?? new DOMException('Carregamento cancelado.', 'AbortError')) }
@@ -36,7 +43,15 @@ export async function loadSpinFrame(url: string, signal: AbortSignal, blobs?: Bl
   try {
     signal.throwIfAborted()
     image.src = src
-    await Promise.race([image.decode(), aborted])
+    // Some embedded engines leave decode() pending after a successful native
+    // load event. A genuinely loaded image is already usable; never wait for
+    // that redundant promise before displaying it. Both paths validate pixels.
+    let decoded = loaded
+    if (typeof image.decode === 'function') {
+      try { decoded = image.decode().catch(() => loaded) }
+      catch { /* Native load/error events also support engines without decode(). */ }
+    }
+    await Promise.race([decoded, loaded, aborted])
     signal.throwIfAborted()
     if (!image.naturalWidth || !image.naturalHeight || image.naturalWidth * image.naturalHeight > 8192 * 4096) throw new SpinFrameError('As dimensões deste quadro não são suportadas.')
     let disposed = false
@@ -46,7 +61,7 @@ export async function loadSpinFrame(url: string, signal: AbortSignal, blobs?: Bl
     if (!signal.aborted) blobs?.delete(url)
     image.removeAttribute('src'); URL.revokeObjectURL(src)
     throw error
-  } finally { signal.removeEventListener('abort', abort) }
+  } finally { image.onload = null; image.onerror = null; signal.removeEventListener('abort', abort) }
 }
 
 export function createSpinFrameCache(loader?: Loader, maxBytes = DEFAULT_SPIN_DECODE_BYTES, options: CacheOptions = {}) {

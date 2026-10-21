@@ -65,6 +65,11 @@ async function scenario(name, run) {
 }
 
 try {
+  await scenario('embedded engine decode promise stalls after successful native image load', async ({ page, image, angle }) => {
+    await page.addInitScript(() => { HTMLImageElement.prototype.decode = () => new Promise(() => undefined) })
+    await page.goto(base + '/showcase/first'); await image(); await angle(1)
+    assert.equal(await page.locator('.spin-frame-status[role=alert]').count(), 0)
+  })
   await scenario('stalled first frame: healthy preview and new angle do not wait for it', async ({ page, state, counts, aborted, image, angle }) => {
     state.fault = 'first-hang'
     const start = Date.now()

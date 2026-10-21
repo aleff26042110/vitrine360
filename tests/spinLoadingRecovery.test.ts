@@ -1,8 +1,26 @@
 import { expect, it, vi } from 'vitest'
-import { createSpinFrameCache, type DecodedSpinFrame } from '../src/spinFrameCache'
+import { createSpinFrameCache, loadSpinFrame, type DecodedSpinFrame } from '../src/spinFrameCache'
 
 const flush = async () => { for (let n=0;n<12;n++) await Promise.resolve() }
 const frame = (src:string): DecodedSpinFrame => ({ src,width:10,height:10,bytes:400,dispose:vi.fn() })
+
+it('accepts a genuinely loaded image when the embedded browser never settles decode()', async () => {
+  let loadFired=false
+  vi.stubGlobal('fetch',vi.fn(async()=>new Response(new Blob(['test'],{type:'image/jpeg'}))))
+  vi.stubGlobal('Image',class{
+    naturalWidth=1280;naturalHeight=720;decoding='async';complete=true
+    onload:(()=>void)|null=null;onerror:(()=>void)|null=null
+    set src(_value:string){queueMicrotask(()=>{loadFired=true;this.onload?.()})}
+    decode(){return new Promise<void>(()=>undefined)}
+    removeAttribute(){}
+  })
+  const controller=new AbortController()
+  let result='waiting'
+  const request=loadSpinFrame('loaded-image',controller.signal)
+  void request.then(value=>{result='ready';value.dispose()},()=>undefined)
+  try{await vi.waitFor(()=>expect(loadFired).toBe(true));await flush();expect(result).toBe('ready')}
+  finally{controller.abort();await request.catch(()=>undefined);vi.unstubAllGlobals()}
+})
 
 it('an obsolete request that never settles cannot block the new visible angle', async () => {
   const started:string[]=[]
